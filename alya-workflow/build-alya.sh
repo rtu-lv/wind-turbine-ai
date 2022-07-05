@@ -11,7 +11,11 @@ cd ../alya-raise/build
 cmake ..
 
 make clean
-make -j8
+
+CORES=$(getconf _NPROCESSORS_ONLN)
+echo "Number of CPU/cores: $CORES" 
+
+make -j$CORES
 make install
 
 cp src/alya/alya ../../alya-workflow/bin
