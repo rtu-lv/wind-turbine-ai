@@ -13,7 +13,7 @@ cmake ..
 make clean
 
 CORES=$(getconf _NPROCESSORS_ONLN)
-echo "Number of CPU/cores: $CORES" 
+echo "Number of CPU/cores: $CORES"
 
 make -j$CORES
 make install
