@@ -1,8 +1,8 @@
 #!/bin/bash
 
 if ! [  -n "$(uname -a | grep Ubuntu)" ]; then
-  module load compilers/cmake/3.21.4-gcc-11.2.0
-  module load compilers/gcc-11.2.0
+  module load compilers/gcc/cmake/3.21.4-gcc-11.2.0
+  module load compilers/gcc/gcc-11.2.0
   module load mpi/openmpi-4.1.1
 fi
 
