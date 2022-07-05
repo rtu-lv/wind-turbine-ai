@@ -19,5 +19,7 @@ echo "Number of CPU/cores used for build: $CORES"
 make -j$CORES
 #make install
 
+mkdir -p ../../alya-workflow/bin
+
 cp src/alya/alya ../../alya-workflow/bin
 cp src/alya2pos/alya2pos ../../alya-workflow/bin
