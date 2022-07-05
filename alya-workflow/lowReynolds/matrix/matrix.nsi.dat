@@ -1,0 +1,74 @@
+$------------------------------------------------------------
+PHYSICAL_PROBLEM
+$------------------------------------------------------------ 
+PROBLEM_DEFINITION       
+  TEMPORAL_DERIVATIVES:     On 
+  CONVECTIVE_TERM:          On
+  VISCOUS_TERM:             LAPLACIAN
+END_PROBLEM_DEFINITION  
+$------------------------------------------------------------
+PROPERTIES
+END_PROPERTIES  
+$------------------------------------------------------------
+END_PHYSICAL_PROBLEM  
+$------------------------------------------------------------
+NUMERICAL_TREATMENT 
+  ELEMENT_LENGTH:           Minimum
+  STABILIZATION:            ASGS
+  TRACKING:                 Time, CONVECTION, ITERAT=100, TOLER=1.0e-5, RELAX=1.0, ORDER=1, NEWTON
+  TIME_INTEGRATION:         Trapezoidal, ORDER: 1, EULER=20
+  SAFETY_FACTOR:            100.0
+  STEADY_STATE_TOLER:       -1e-12
+
+  VECTORIZED_ASSEMBLY:      ON
+
+  NORM_OF_CONVERGENCE:      LAGGED_ALGEBRAIC_RESIDUAL
+  MAXIMUM_NUMBER_OF_IT:     1
+  CONVERGENCE_TOLERANCE:    1e-12
+
+  ALGORITHM:                SCHUR
+    SOLVER:                 ORTHOMIN, MOMENTUM_PRESERVING
+    PRECONDITIONER:         TAU
+    ELEMENT_LENGTH:         Minimum
+    TAU_STRATEGY:           Codina
+  END_ALGORITHM
+
+  MOMENTUM
+    ALGEBRAIC_SOLVER     
+      SOLVER:                GMRES, KRYLOV=10
+      CONVERGENCE:           ITERA=1000, TOLER=1.0e-12, ADAPTIVE, RATIO=0.01
+      OUTPUT:                CONVERGENCE
+      PRECONDITIONER:        DIAGONAL
+    END_ALGEBRAIC_SOLVER        
+  END_MOMENTUM
+  CONTINUITY 
+    ALGEBRAIC_SOLVER
+       SOLVER:               DEFLATED_CG
+       CONVERGENCE:          ITERA=1000, TOLER=1.0e-12, ADAPTIVE, RATIO=0.01
+       OUTPUT:               CONVERGENCE
+       PRECONDITIONER:       DIAGONAL
+    END_ALGEBRAIC_SOLVER        
+  END_CONTINUITY
+
+END_NUMERICAL_TREATMENT  
+$------------------------------------------------------------
+OUTPUT_&_POST_PROCESS  
+  POSTPROCESS VELOCITY, MESH=UPW
+  POSTPROCESS VELOCITY, MESH=DOWNW
+  POSTPROCESS VELOCITY
+  POSTPROCESS PRESSURE
+  POSTPROCESS FIXNO
+END_OUTPUT_&_POST_PROCESS   
+$------------------------------------------------------------
+BOUNDARY_CONDITIONS
+  PARAMETERS
+    VARIATION: NON_CONSTANT
+    INFLOW_COSINE=1.0
+    INITIAL:  SPACE_TIME_FUNCTION=INFLOW
+  END_PARAMETERS
+  CODES, NODES
+     1  88  1.0 1.0, SPACE_TIME_FUNCTION=INFLOW
+     2  11  0.0 0.0
+  END_CODES
+END_BOUNDARY_CONDITIONS  
+$------------------------------------------------------------

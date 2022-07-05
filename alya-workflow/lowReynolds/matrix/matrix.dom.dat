@@ -1,0 +1,29 @@
+$------------------------------------------------------------
+DIMENSIONS
+   SPACE_DIMENSIONS= 2
+   TYPES:          TRI03
+   INCLUDE ./matrix.dims.dat
+END_DIMENSIONS
+$------------------------------------------------------------
+STRATEGY
+  INTEGRATION_RULE:                Open  
+  DOMAIN_INTEGRATION_POINTS:       0  
+  EXTRAPOLATE_BOUNDARY_CONDITIONS: On
+  BOUNDARY_ELEMENT:                Off
+  GROUPS=                          100, Sequential_frontal  
+END_STRATEGY
+$-------------------------------------------------------------
+GEOMETRY
+  INCLUDE  ./matrix.geo.dat
+END_GEOMETRY  
+$-------------------------------------------------------------
+SETS
+END_SETS
+$-------------------------------------------------------------
+BOUNDARY_CONDITIONS
+  INCLUDE  ./matrix.fix.bou
+END_BOUNDARY_CONDITIONS
+$-------------------------------------------------------------
+FIELDS
+END_FIELDS
+$-------------------------------------------------------------

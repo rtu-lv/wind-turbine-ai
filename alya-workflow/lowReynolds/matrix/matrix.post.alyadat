@@ -1,0 +1,9 @@
+$-------------------------------------------------------------------
+DATA
+  FORMAT:                   visit
+  MARK_ELEMENTS:            TYPE
+  ELIMINATE_BOUNDARY_NODES: ON
+  MULTIPLE_FILE:            OFF
+  BOUNDARY:                 ON
+END_DATA
+$-------------------------------------------------------------------

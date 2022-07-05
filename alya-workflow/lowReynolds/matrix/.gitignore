@@ -1,0 +1,12 @@
+# Ignore all files generated inside this folder when running Alya
+*
+
+# But keep the configuration files necesary to run the case
+!clean.sh
+!.gitignore
+!matrix.dat
+!matrix.dom.dat
+!matrix.geo
+!matrix.ker.dat
+!matrix.nsi.dat
+!matrix.post.alyadat

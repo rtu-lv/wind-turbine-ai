@@ -1,0 +1,29 @@
+$-------------------------------------------------------------------
+RUN_DATA
+  ALYA:                   cavtri03
+END_RUN_DATA
+$-------------------------------------------------------------------
+PROBLEM_DATA
+$  TIME_COUPLING:          Global, from_critical
+  TIME_COUPLING:	  Global
+  TIME_INTERVAL=          0.0, 120
+  TIME_STEP_SIZE=         0.02
+  NUMBER_OF_STEPS=        6000
+  NASTIN_MODULE:          On
+  END_NASTIN_MODULE
+  PARALL_SERVICE:         On
+    PARTITION_TYPE:       FACES
+    PARTITIONING
+      METHOD:             SFC
+      EXECUTION_MODE:     PARALLEL
+    END_PARTITIONING
+  END_PARALL_SERVICE 
+END_PROBLEM_DATA
+$-------------------------------------------------------------------
+MPI_IO:         Off
+  GEOMETRY:     Off
+  RESTART:      Off
+  POSTPPROCESS: Off
+  MERGE:        Off
+END_MPI_IO
+$-------------------------------------------------------------------

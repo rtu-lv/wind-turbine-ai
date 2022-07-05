@@ -1,0 +1,45 @@
+$------------------------------------------------------------
+PHYSICAL_PROBLEM
+  PROPERTIES
+    MATERIAL: 2
+      DENSITY:   CONSTANT, VALUE=1.0
+      VISCOSITY: CONSTANT: VALUE=0.001
+    END_MATERIAL
+    MATERIAL: 3
+      DENSITY:   CONSTANT, VALUE=1.0
+      VISCOSITY: CONSTANT: VALUE=0.001
+    END_MATERIAL
+    MATERIAL: 4
+      DENSITY:   CONSTANT, VALUE=1.0
+      VISCOSITY: CONSTANT: VALUE=0.001
+      POROSITY:  CONSTANT: VALUE=4000.0
+  END_PROPERTIES
+END_PHYSICAL_PROBLEM  
+$------------------------------------------------------------
+NUMERICAL_TREATMENT 
+  MESH
+    MESH_MULTIPLICATION=0
+    ROTATION: Z, ANGLE=-45.0
+  END_MESH
+  ELSEST 
+    STRATEGY: BIN
+    NUMBER:   10,10
+    DATAF:    TYPE 
+  END_ELSEST
+  SPACE_&_TIME_FUNCTIONS
+    FUNCTION=INFLOW, DIMENSION=2
+      1.0*cos(0/180*pi(1))
+      1.0*sin(0/180*pi(1))
+    END_FUNCTION
+  END_SPACE_&_TIME_FUNCTIONS
+END_NUMERICAL_TREATMENT   
+$------------------------------------------------------------
+OUTPUT_&_POST_PROCESS  
+  ON_LAST_MESH
+  STEPS=600
+  WITNESS, MESHES, NUMBER=2
+    BOX:  XMIN=0.0,   YMIN=-0.06, ZMIN=0, XMAX=0.42, YMAX=0.06, ZMAX=0, NX=168, NY=48, NZ=1  NAME=DOWNW
+    BOX:  XMIN=-0.06, YMIN=-0.06, ZMIN=0, XMAX=0.00, YMAX=0.06, ZMAX=0, NX=24,  NY=48, NZ=1  NAME=UPW    
+  END_WITNESS
+END_OUTPUT_&_POST_PROCESS  
+$------------------------------------------------------------

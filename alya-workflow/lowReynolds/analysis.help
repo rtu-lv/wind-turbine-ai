@@ -1,0 +1,106 @@
+FUNCTION
+setCos(fold, case, value)
+PARAMETERS
+fold:   String variable with the name of the folder where the case is located
+case:   String variable with the name of the case
+value:  Numerical value of the cosinus to set as limit for angle where boundary
+        condition changes from forced to free
+DESCRIPTION
+Modifies the file 'case.nsi.dat' inside 'fold' to set the ALYA parameter 'INFLOW_COSINUS=value'.
+Defines the angle on the outer boundary for the inflow condition to become a free output.
+EXAMPLE
+setCos("surrogate", "matSurr", 1.0)
+
+---
+FUNCTION
+setVars(fold, case, ang, vel, poro=0)
+PARAMETERS
+fold:   String variable with the name of the folder where the case is located
+case:   String variable with the name of the case
+ang:    Numerical value with the angle of incoming flow velocity in degrees.
+vel:    Numerical value with the modulus of incoming flow velocity. (Simulations only tested for
+        values between 0.01 and 1).
+poro:   Numerical value with the porosity to be used in surrogate material. (Default value
+        of 0 if omitted).
+DESCRIPTION
+Modifies the file 'case.ker.dat' inside 'fold' to set ALYA parameters that define the angle and
+modulus of incoming flow velocity and porosity for the surrogate material.
+EXAMPLE
+setVars("surrogate", "matSurr", 30.0, 0.1, 10000.0)
+
+---
+FUNCTION
+getMesh(fold, case)
+PARAMETERS
+fold:   String variable with the name of the folder where the case is located
+case:   String variable with the name of the case
+DESCRIPTION
+Runs the mesh generation and conversion to Alya format for the 'case' inside 'folder'. A geometry
+generator file 'case.geo' is required.
+EXAMPLE
+getMesh("surrogate", "matSurr")
+
+---
+FUNCTION
+runAlya(fold, case, output=False)
+PARAMETERS
+fold:   String variable with the name of the folder where the case is located
+case:   String variable with the name of the case
+output: Logical value (True / False) to set the visibility of ALYA's output. (Defaults to False
+        if omitted.
+DESCRIPTION
+Requires the 'fold' directory to contain a valid mesh description files for Alya (run 'getMesh()' in case they have not been generated yet) 
+Runs the alya 'case' inside 'fold' with the current configuration there. Output files are not processed
+further.
+EXAMPLE
+runAlya("surrogate", "matSurr", True)
+
+---
+FUNCTION
+runCase(fold, case, ang, vel, poro=0, output=False)
+PARAMETERS
+fold:   String variable with the name of the folder where the case is located
+case:   String variable with the name of the case
+ang:    Numerical value in sexadecimal angular system for the velocity direction
+vel:    Numerical value for the inflow velocity
+poro:   Numerical value for the porosity to be applied in surrogate models (default value
+        of 0 if omitted)
+output: Set to True in order to get the full Alya output (default value of False if omitted)
+DESCRIPTION
+Modifies the required files inside 'fold', corresponding to 'case' and runs the Alya simulation
+with the inflow velocity having the incoming angle 'ang' and the modulus (10^vel).
+Output files are processed and stored inside the './results' directory.
+EXAMPLE
+runCase("surrogate", "matSurr", 30, 0.1, 10000, True)
+
+---
+FUNCTION
+setLimits(ang1, ang2, vel1, vel2, por1=0, por2=0)
+PARAMETERS
+ang1:   Numerical value of lower angle value to simulate
+ang2:   Numerical value of higher angle value to simulate
+vel1:   Order of magnitude of the lower velocity to simulate
+vel2:   Order of magnitude of the higher velocity to simulate
+por1:   Numerical value of lower porosity to be applied (default value of 0 if omitted)
+por2:   Numerical value of higher porosity to be applied (default value of 0 if omitted)
+DESCRIPTION
+Defines a global array variable 'Lims' with the value limits. This array is later used by
+the function runCaseBattery() to sequentially run Alya simulations for several values.
+EXAMPLE
+setLimits(0, 45, -2, 0, 0, 50000)
+
+---
+FUNCTION
+runCaseBattery(fold, case, nAng, nVel, nPor=1)
+PARAMETERS
+fold:   String variable with the name of the folder where the case is located
+case:   String variable with the name of the case
+nAng:   Numerical value for the number of angle values used to run Alya simulations
+nVel:   Numerical value for the number of velocity values used to run Alya simulations
+nPor:   Numerical value for the number of porosity values to use in the surrogate models (default
+        value of 0 if omitted)
+DESCRIPTION
+Run a sequential battery of cases and stores the witness points velocities for each one inside the folder 'results'.
+If no global variable 'Lims' has been already set it defaults to '[0, 45, -2, 0, 0, 0]' 
+EXAMPLE
+runCaseBattery("surrogate", "matSurr", 5, 5, 5)
