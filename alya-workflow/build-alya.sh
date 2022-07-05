@@ -1,8 +1,10 @@
 #!/bin/bash
 
-module load spack/cmake/3.21.4-gcc-11.2.0
-module load spack/gcc-11.2.0
-module load mpi/openmpi-4.1.1
+if ! [  -n "$(uname -a | grep Ubuntu)" ]; then
+  module load spack/cmake/3.21.4-gcc-11.2.0
+  module load spack/gcc-11.2.0
+  module load mpi/openmpi-4.1.1
+fi
 
 cd ../alya-raise/build
 
