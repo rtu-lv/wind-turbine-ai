@@ -1,29 +1,32 @@
 #!/usr/bin/env python3
 # set the matplotlib backend so figures can be saved in the background
-import matplotlib
-
-# import the necessary packages
-from model_lenet import LeNet
-from torch.utils.data import random_split
-from torch.utils.data import DataLoader
-from torch.optim import AdamW, lr_scheduler
-from torch import nn
-import matplotlib.pyplot as plt
 import argparse
-import torch
+import os
 import pickle
-import torchmetrics
+import sys
 from os.path import exists, join
-import pytorch_lightning as pl
-from pytorch_lightning import LightningModule
 
-import os, sys
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)
+import matplotlib
+import matplotlib.pyplot as plt
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import Callback
+import torch
+import torchmetrics
+from torch import nn
+from torch.optim import AdamW, lr_scheduler
+from torch.utils.data import DataLoader
+from torch.utils.data import random_split
+
+from model_lenet import LeNet
+
+current_dir = os.path.dirname(os.path.realpath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
 from common.alya_dataset import AlyaDataset
 
-matplotlib.use("Agg")
+from torch.utils.tensorboard import SummaryWriter
+
+matplotlib.use("agg")
 
 # Used to force same split each run between validation and training
 torch.manual_seed(42)
@@ -47,26 +50,68 @@ if args["continue"] is not None:
     INIT_LR = args["continue"]
 else:
     INIT_LR = 1e-3
-BATCH_SIZE = 50
 EPOCHS = args["epochs"]
 
 # define the train and val splits
 TRAIN_SPLIT = 0.8
 
+writer = SummaryWriter()
 
-class ModelA(LightningModule):
-    def __init__(self):
+
+class ModelA(pl.LightningModule):
+    def __init__(self, batch_size):
         super().__init__()
+        self.batch_size = batch_size
+
         print("[INFO] initializing the model...")
         if args["continue"] is not None:
             self.model = torch.load(args["model"])
         else:
             self.model = LeNet(numChannels=2)
 
+        # --------------------------------------------------------------------------------------
+        # load the Alya surrogate dataset
+        print("[INFO] loading the Alya Surrogate dataset...")
+        data_dir = join(current_dir, args["data"])
+        if exists(data_dir):
+            with open(data_dir, 'rb') as f:
+                self.train_dataset = pickle.load(f)
+                self.test_dataset = pickle.load(f)
+        else:
+            self.train_dataset = AlyaDataset("../../surr-train")
+            self.test_dataset = AlyaDataset("../../surr-test")
+            with open(data_dir, 'wb') as f:
+                pickle.dump(self.ttrain_dataset, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(self.ttest_dataset, f, pickle.HIGHEST_PROTOCOL)
+
+        # calculate the train/validation split
+        print("[INFO] generating the train/validation split...")
+        num_train_samples = int(len(self.train_dataset) * TRAIN_SPLIT)
+        num_val_samples = len(self.train_dataset) - num_train_samples
+        # %%
+        (self.train_dataset, self.val_dataset) = random_split(self.train_dataset, [num_train_samples, num_val_samples])
+
         self.lossFn = nn.MSELoss()  # <-- Mean Square error loss function
 
         self.train_accuracy = torchmetrics.MeanMetric()
         self.val_accuracy = torchmetrics.MeanMetric()
+
+        # initialize a dictionary to store training history
+        self.H = {
+            "train_loss": [],
+            "train_acc": [],
+            "val_loss": [],
+            "val_acc": []
+        }
+
+    def train_dataloader(self):
+        return DataLoader(self.train_dataset, shuffle=True, batch_size=self.batch_size)
+
+    def val_dataloader(self):
+        return DataLoader(self.val_dataset, batch_size=self.batch_size)
+
+    def test_dataloader(self):
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=16)
 
     def training_step(self, batch, batch_idx):
         x1, x2, ang, y = batch
@@ -75,10 +120,12 @@ class ModelA(LightningModule):
         pred = self.model(x1, x2, ang)
 
         loss = self.lossFn(pred, y)
-        self.log("train_loss", loss)
+        self.log("train_loss", loss, on_step=False, on_epoch=True)
 
-        self.train_accuracy((pred / y).sum().item())
-        self.log("train_accuracy", self.train_accuracy)
+        self.train_accuracy((pred / y).sum().item() / len(self.train_dataset))
+        self.log("train_accuracy", self.train_accuracy, on_step=False, on_epoch=True)
+
+        #writer.add_scalar("Loss/train", loss, self.train_accuracy.)
 
         return loss
 
@@ -89,10 +136,10 @@ class ModelA(LightningModule):
         pred = self.model(x1, x2, ang)
 
         loss = self.lossFn(pred, y)
-        self.log("validation_loss", loss)
+        self.log("validation_loss", loss, on_step=False, on_epoch=True)
 
-        self.val_accuracy((pred / y).sum().item())
-        self.log("validation_accuracy", self.val_accuracy, prog_bar=True)
+        self.val_accuracy((pred / y).sum().item() / len(self.val_dataset))
+        self.log("validation_accuracy", self.val_accuracy, on_step=False, on_epoch=True)
 
     def test_step(self, batch, batch_idx):
         x1, x2, ang, y = batch
@@ -111,17 +158,33 @@ class ModelA(LightningModule):
         return [opt], [sch1, sch2]
 
 
-def plot(model, H, Gdata):
+class ModelCallback(Callback):
+    def on_train_epoch_end(self, trainer, module):
+        train_loss = trainer.callback_metrics['train_loss'].cpu().detach().numpy()
+        module.H["train_loss"].append(train_loss)
+
+        train_accuracy = trainer.callback_metrics['train_accuracy'].cpu().detach().numpy()
+        module.H["train_acc"].append(train_accuracy)
+
+    def on_validation_epoch_end(self, trainer, module):
+        val_loss = trainer.callback_metrics['validation_loss'].cpu().detach().numpy()
+        module.H["val_loss"].append(val_loss)
+
+        val_acc = trainer.callback_metrics['validation_accuracy'].cpu().detach().numpy()
+        module.H["val_acc"].append(val_acc)
+
+
+def plot(model):
     # plot the training loss and accuracy
     plt.style.use("ggplot")
     fig, ax1 = plt.subplots(figsize=(45, 15))
     ax2 = ax1.twinx()
     ax1.set_ylim([0, .1])
     ax2.set_ylim([0, 2])
-    ax1.plot(H["train_loss"], label="train_loss", color="red")
-    ax1.plot(H["val_loss"], label="val_loss", color="orange")
-    ax2.plot(H["train_acc"], label="train_acc", color="blue")
-    ax2.plot(H["val_acc"], label="val_acc", color="green")
+    ax1.plot(model.H["train_loss"], label="train_loss", color="red")
+    ax1.plot(model.H["val_loss"], label="val_loss", color="orange")
+    ax2.plot(model.H["train_acc"], label="train_acc", color="blue")
+    ax2.plot(model.H["val_acc"], label="val_acc", color="green")
     plt.title("Training Loss and Accuracy on Dataset")
     plt.xlabel("Epoch #")
     ax1.set_ylabel("Loss")
@@ -130,62 +193,39 @@ def plot(model, H, Gdata):
     ax2.legend(loc="upper left")
     plt.savefig(args["plot"], bbox_inches='tight')
 
-    # serialize the model to disk
-    torch.save(model, args["model"])
-
     # %%
 
     # plot the prediction vs. real Porosity
-    plt.style.use("ggplot")
-    fig, axs = plt.subplots(1, 3, figsize=(45, 15), sharey=True)
-    axs[0].set_ylim([0, 1e5])
-    for i in range(3):
-        axs[i].set_xlim([0, 1e5])
-    for i, dS in enumerate(Gdata):
-        axs[i].scatter(Gdata[dS][1], Gdata[dS][2], color="blue")
-        axs[i].plot([0, 1e5], [0, 1e5], linestyle=":", color="green")
-        axs[i].set_xlabel("Real porosity")
-        axs[i].set_title(dS)
-    axs[0].set_ylabel("Predicted porosity")
-    fig.suptitle("Predicted versus real porosity")
-    plt.savefig(args["plot"] + "_comp", bbox_inches='tight')
+#    plt.style.use("ggplot")
+#    fig, axs = plt.subplots(1, 3, figsize=(45, 15), sharey=True)
+#    axs[0].set_ylim([0, 1e5])
+#    for i in range(3):
+#        axs[i].set_xlim([0, 1e5])
+#    for i, dS in enumerate(Gdata):
+#        axs[i].scatter(Gdata[dS][1], Gdata[dS][2], color="blue")
+#        axs[i].plot([0, 1e5], [0, 1e5], linestyle=":", color="green")
+#        axs[i].set_xlabel("Real porosity")
+#        axs[i].set_title(dS)
+#    axs[0].set_ylabel("Predicted porosity")
+#    fig.suptitle("Predicted versus real porosity")
+#    plt.savefig(args["plot"] + "_comp", bbox_inches='tight')
 
-#--------------------------------------------------------------------------------------
-# load the Alya surrogate dataset
-print("[INFO] loading the Alya Surrogate dataset...")
-data_dir = join(currentdir, args["data"])
-if exists(data_dir):
-    with open(data_dir, 'rb') as f:
-        trainData = pickle.load(f)
-        testData = pickle.load(f)
-else:
-    trainData = AlyaDataset("../../surr-train")
-    testData = AlyaDataset("../../surr-test")
-    with open(data_dir, 'wb') as f:
-        pickle.dump(trainData, f, pickle.HIGHEST_PROTOCOL)
-        pickle.dump(testData, f, pickle.HIGHEST_PROTOCOL)
-
-# calculate the train/validation split
-print("[INFO] generating the train/validation split...")
-numTrainSamples = int(len(trainData) * TRAIN_SPLIT)
-numValSamples = len(trainData) - numTrainSamples
-# %%
-(trainData, valData) = random_split(trainData, [numTrainSamples, numValSamples])
-
-# initialize the train, validation, and test data loaders
-trainDataLoader = DataLoader(trainData, shuffle=True, batch_size=BATCH_SIZE)
-valDataLoader = DataLoader(valData, batch_size=BATCH_SIZE)
-testDataLoader = DataLoader(testData, batch_size=BATCH_SIZE)
-
-# calculate steps per epoch for training and validation set
-trainSteps = len(trainDataLoader.dataset) // BATCH_SIZE
-valSteps = len(valDataLoader.dataset) // BATCH_SIZE
 
 # set the device we will be using to train the model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Device:", device)
 
-model = ModelA()
-trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=100, log_every_n_steps=50)
-trainer.fit(model=model, train_dataloaders=trainDataLoader, val_dataloaders=valDataLoader)
-trainer.test(ckpt_path='best', dataloaders=testDataLoader)
+DEF_BATCH_SIZE = 50
+
+model = ModelA(batch_size=DEF_BATCH_SIZE)
+trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=EPOCHS, auto_scale_batch_size="binsearch",
+                     callbacks=[ModelCallback()])
+#trainer.tune(model=model)
+trainer.fit(model=model)
+trainer.test(ckpt_path='best')
+writer.flush()
+
+plot(model)
+
+# serialize the model to disk
+torch.save(model.model, args["model"])
