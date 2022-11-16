@@ -122,7 +122,7 @@ class ModelA(pl.LightningModule):
         loss = self.lossFn(pred, y)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
 
-        self.train_accuracy((pred / y).sum().item() / len(self.train_dataset))
+        self.train_accuracy((pred / y).sum().item() / self.batch_size)
         self.log("train_accuracy", self.train_accuracy, on_step=False, on_epoch=True)
 
         #writer.add_scalar("Loss/train", loss, self.train_accuracy.)
@@ -138,7 +138,7 @@ class ModelA(pl.LightningModule):
         loss = self.lossFn(pred, y)
         self.log("validation_loss", loss, on_step=False, on_epoch=True)
 
-        self.val_accuracy((pred / y).sum().item() / len(self.val_dataset))
+        self.val_accuracy((pred / y).sum().item() / self.batch_size)
         self.log("validation_accuracy", self.val_accuracy, on_step=False, on_epoch=True)
 
     def test_step(self, batch, batch_idx):
