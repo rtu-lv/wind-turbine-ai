@@ -95,6 +95,7 @@ class ModelA(pl.LightningModule):
 
         self.train_accuracy = torchmetrics.MeanMetric()
         self.val_accuracy = torchmetrics.MeanMetric()
+        self.test_accuracy = torchmetrics.MeanMetric()
 
         # initialize a dictionary to store training history
         self.H = {
@@ -146,6 +147,12 @@ class ModelA(pl.LightningModule):
 
         (x1, x2, ang) = (x1.to(device), x2.to(device), ang.to(device))
         pred = self.model(x1, x2, ang)
+
+        loss = self.lossFn(pred, y)
+        self.log("test_loss", loss)
+
+        self.test_accuracy((pred / y).sum().item() / self.batch_size)
+        self.log("test_accuracy", self.test_accuracy)
 
     def configure_optimizers(self):
         # initialize our optimizer and loss function
@@ -221,6 +228,8 @@ model = ModelA(batch_size=DEF_BATCH_SIZE)
 trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=EPOCHS, auto_scale_batch_size="binsearch",
                      callbacks=[ModelCallback()])
 #trainer.tune(model=model)
+print("Batch size: {}".format(model.batch_size))
+
 trainer.fit(model=model)
 trainer.test(ckpt_path='best')
 writer.flush()
