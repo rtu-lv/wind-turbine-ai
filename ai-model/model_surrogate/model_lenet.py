@@ -21,7 +21,7 @@ def _init_weights(module):
 
 class LeNet(Module):
 
-    def __init__(self, numChannels):
+    def __init__(self, num_channels):
         # call the parent constructor
         super(LeNet, self).__init__()
 
@@ -32,9 +32,9 @@ class LeNet(Module):
         self.activOut = Sigmoid()
 
         # initialize first set of CONV => RELU => POOL layers
-        self.conv1a = Conv2d(in_channels=numChannels, out_channels=20,
+        self.conv1a = Conv2d(in_channels=num_channels, out_channels=20,
                              kernel_size=(5, 5), stride=(2, 2))
-        self.conv1b = Conv2d(in_channels=numChannels, out_channels=20,
+        self.conv1b = Conv2d(in_channels=num_channels, out_channels=20,
                              kernel_size=(9, 5), stride=(2, 2))
 
         # initialize second set of CONV (=> RELU => POOL layers)
@@ -44,18 +44,18 @@ class LeNet(Module):
                              kernel_size=(5, 5), stride=(2, 2))
 
         # initialize separate set of FC => RELU layers
-        self.fca = Linear(in_features=1001, out_features=200)
-        self.fcb = Linear(in_features=1501, out_features=300)
+        self.fca = Linear(in_features=2100, out_features=200)
+        self.fcb = Linear(in_features=2700, out_features=300)
 
         # initialize first common linear layer FC => RELU
         self.fc1 = Linear(in_features=500, out_features=100)
 
         # get output layer as a single value
-        self.fcOut = Linear(in_features=100, out_features=1)
+        self.fcOut = Linear(in_features=100, out_features=4)
 
         # self.apply(self._init_weights)
 
-    def forward(self, xa, xb, ang):
+    def forward(self, xa, xb):
         # pass the input through our first set of CONV => RELU =>
         # POOL layers
         # IN:  xa == (25 x 49)x2    xb == (169 x 49)x2
@@ -83,12 +83,6 @@ class LeNet(Module):
         # print(xa.size(), xb.size())
         xa = flatten(xa, 1)  # flatten on dim 1 to account for batch dim 0
         xb = flatten(xb, 1)
-
-        # Add angle value to the flattened arrays
-        # IN:  xa == 1000           xb == 1500
-        # OUT: xa == 1001           xb == 1501
-        xa = cat((xa, ang), 1)  # flatten on dim 1 to account for batch dim 0
-        xb = cat((xb, ang), 1)
 
         # pass the output through 2 separate sets of FC => RELU layers
         # IN:  xa == 1001           xb == 1501

@@ -55,10 +55,12 @@ EPOCHS = args["epochs"]
 # define the train and val splits
 TRAIN_SPLIT = 0.8
 
+DATA_BASE_PATH = '../data/'
+
 writer = SummaryWriter()
 
 
-class ModelA(pl.LightningModule):
+class ModuleSurrogate(pl.LightningModule):
     def __init__(self, batch_size):
         super().__init__()
         self.batch_size = batch_size
@@ -67,22 +69,22 @@ class ModelA(pl.LightningModule):
         if args["continue"] is not None:
             self.model = torch.load(args["model"])
         else:
-            self.model = LeNet(numChannels=2)
+            self.model = LeNet(num_channels=2)
 
         # --------------------------------------------------------------------------------------
         # load the Alya surrogate dataset
         print("[INFO] loading the Alya Surrogate dataset...")
-        data_dir = join(current_dir, args["data"])
-        if exists(data_dir):
-            with open(data_dir, 'rb') as f:
+        data_cache_file = join(current_dir, args["data"])
+        if exists(data_cache_file):
+            with open(data_cache_file, 'rb') as f:
                 self.train_dataset = pickle.load(f)
                 self.test_dataset = pickle.load(f)
         else:
-            self.train_dataset = AlyaDataset("../../surr-train")
-            self.test_dataset = AlyaDataset("../../surr-test")
-            with open(data_dir, 'wb') as f:
-                pickle.dump(self.ttrain_dataset, f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump(self.ttest_dataset, f, pickle.HIGHEST_PROTOCOL)
+            self.train_dataset = AlyaDataset(DATA_BASE_PATH + "surrogate_train")
+            self.test_dataset = AlyaDataset(DATA_BASE_PATH + "surrogate_test")
+            with open(data_cache_file, 'wb') as f:
+                pickle.dump(self.train_dataset, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(self.test_dataset, f, pickle.HIGHEST_PROTOCOL)
 
         # calculate the train/validation split
         print("[INFO] generating the train/validation split...")
@@ -115,12 +117,12 @@ class ModelA(pl.LightningModule):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=16)
 
     def training_step(self, batch, batch_idx):
-        x1, x2, ang, y = batch
+        x1, x2, x3, x4, y = batch
 
         # perform a forward pass and calculate the training loss
-        pred = self.model(x1, x2, ang)
+        pred = self.model(x1, x2)
 
-        loss = self.lossFn(pred, y)
+        loss = (self.lossFn(pred[0], y[0]) + self.lossFn(pred[1], y[1]) + self.lossFn(pred[2], y[2]) + self.lossFn(pred[3], y[3])) / 4
         self.log("train_loss", loss, on_step=False, on_epoch=True)
 
         self.train_accuracy((pred / y).sum().item() / self.batch_size)
@@ -131,10 +133,10 @@ class ModelA(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x1, x2, ang, y = batch
+        x1, x2, x3, x4, y = batch
 
         # make the predictions and calculate the validation loss
-        pred = self.model(x1, x2, ang)
+        pred = self.model(x1, x2)
 
         loss = self.lossFn(pred, y)
         self.log("validation_loss", loss, on_step=False, on_epoch=True)
@@ -143,10 +145,9 @@ class ModelA(pl.LightningModule):
         self.log("validation_accuracy", self.val_accuracy, on_step=False, on_epoch=True)
 
     def test_step(self, batch, batch_idx):
-        x1, x2, ang, y = batch
+        x1, x2, x3, x4, y = batch
 
-        (x1, x2, ang) = (x1.to(device), x2.to(device), ang.to(device))
-        pred = self.model(x1, x2, ang)
+        pred = self.model(x1, x2)
 
         loss = self.lossFn(pred, y)
         self.log("test_loss", loss)
@@ -179,6 +180,19 @@ class ModelCallback(Callback):
 
         val_acc = trainer.callback_metrics['validation_accuracy'].cpu().detach().numpy()
         module.H["val_acc"].append(val_acc)
+
+
+class CombinedLoss(nn.Module):
+    def __init__(self, loss_function):
+        super(CombinedLoss, self).__init__()
+        self.lossFn = loss_function
+
+    def forward(self, inputs, targets):
+        size = inputs.size(dim=1)
+        loss = 0
+        for i in range(0..length):
+            loss += self.lossFn(inputs[i], targets[i])
+        return loss / size
 
 
 def plot(model):
@@ -224,7 +238,7 @@ print("Device:", device)
 
 DEF_BATCH_SIZE = 50
 
-model = ModelA(batch_size=DEF_BATCH_SIZE)
+model = ModuleSurrogate(batch_size=DEF_BATCH_SIZE)
 trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=EPOCHS, auto_scale_batch_size="binsearch",
                      callbacks=[ModelCallback()])
 #trainer.tune(model=model)
