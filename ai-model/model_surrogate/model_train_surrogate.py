@@ -11,11 +11,13 @@ import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
 import torch
-import torchmetrics
+from torchmetrics import MeanMetric
 from torch import nn
 from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
+
+import multiprocessing
 
 from model_lenet import LeNet
 
@@ -23,8 +25,6 @@ current_dir = os.path.dirname(os.path.realpath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 from common.alya_dataset import AlyaDataset
-
-from torch.utils.tensorboard import SummaryWriter
 
 matplotlib.use("agg")
 
@@ -57,7 +57,19 @@ TRAIN_SPLIT = 0.8
 
 DATA_BASE_PATH = '../data/'
 
-writer = SummaryWriter()
+
+class CombinedLoss(nn.Module):
+    def __init__(self, loss_function):
+        super(CombinedLoss, self).__init__()
+        self.lossFn = loss_function
+
+    def forward(self, inputs, targets):
+        n = inputs.size(dim=1)
+        loss = 0
+        for i in range(n):
+            square_difference = torch.square(inputs[:, i] - targets[:, i])
+            loss += torch.mean(square_difference)
+        return loss / n
 
 
 class ModuleSurrogate(pl.LightningModule):
@@ -86,6 +98,9 @@ class ModuleSurrogate(pl.LightningModule):
                 pickle.dump(self.train_dataset, f, pickle.HIGHEST_PROTOCOL)
                 pickle.dump(self.test_dataset, f, pickle.HIGHEST_PROTOCOL)
 
+        self.train_dataset.transform_porosity()
+        self.test_dataset.transform_porosity()
+
         # calculate the train/validation split
         print("[INFO] generating the train/validation split...")
         num_train_samples = int(len(self.train_dataset) * TRAIN_SPLIT)
@@ -93,11 +108,11 @@ class ModuleSurrogate(pl.LightningModule):
         # %%
         (self.train_dataset, self.val_dataset) = random_split(self.train_dataset, [num_train_samples, num_val_samples])
 
-        self.lossFn = nn.MSELoss()  # <-- Mean Square error loss function
+        self.lossFn = nn.MSELoss()
 
-        self.train_accuracy = torchmetrics.MeanMetric()
-        self.val_accuracy = torchmetrics.MeanMetric()
-        self.test_accuracy = torchmetrics.MeanMetric()
+        self.train_accuracy = MeanMetric()
+        self.val_accuracy = MeanMetric()
+        self.test_accuracy = MeanMetric()
 
         # initialize a dictionary to store training history
         self.H = {
@@ -108,13 +123,16 @@ class ModuleSurrogate(pl.LightningModule):
         }
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, shuffle=True, batch_size=self.batch_size)
+        number_of_cores = multiprocessing.cpu_count() // 4
+        return DataLoader(self.train_dataset, shuffle=True, batch_size=self.batch_size, num_workers=number_of_cores)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size)
+        number_of_cores = multiprocessing.cpu_count() // 8
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=number_of_cores)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=16)
+        number_of_cores = multiprocessing.cpu_count()
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=number_of_cores)
 
     def training_step(self, batch, batch_idx):
         x1, x2, x3, x4, y = batch
@@ -122,13 +140,11 @@ class ModuleSurrogate(pl.LightningModule):
         # perform a forward pass and calculate the training loss
         pred = self.model(x1, x2)
 
-        loss = (self.lossFn(pred[0], y[0]) + self.lossFn(pred[1], y[1]) + self.lossFn(pred[2], y[2]) + self.lossFn(pred[3], y[3])) / 4
+        loss = self.lossFn(pred, y)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
 
-        self.train_accuracy((pred / y).sum().item() / self.batch_size)
+        self.train_accuracy(pred, y)
         self.log("train_accuracy", self.train_accuracy, on_step=False, on_epoch=True)
-
-        #writer.add_scalar("Loss/train", loss, self.train_accuracy.)
 
         return loss
 
@@ -182,19 +198,6 @@ class ModelCallback(Callback):
         module.H["val_acc"].append(val_acc)
 
 
-class CombinedLoss(nn.Module):
-    def __init__(self, loss_function):
-        super(CombinedLoss, self).__init__()
-        self.lossFn = loss_function
-
-    def forward(self, inputs, targets):
-        size = inputs.size(dim=1)
-        loss = 0
-        for i in range(0..length):
-            loss += self.lossFn(inputs[i], targets[i])
-        return loss / size
-
-
 def plot(model):
     # plot the training loss and accuracy
     plt.style.use("ggplot")
@@ -239,16 +242,16 @@ print("Device:", device)
 DEF_BATCH_SIZE = 50
 
 model = ModuleSurrogate(batch_size=DEF_BATCH_SIZE)
-trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=EPOCHS, auto_scale_batch_size="binsearch",
-                     callbacks=[ModelCallback()])
+trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=EPOCHS,
+                     callbacks=[ModelCallback()], log_every_n_steps=DEF_BATCH_SIZE // 2)
+#auto_scale_batch_size="binsearch",
 #trainer.tune(model=model)
-print("Batch size: {}".format(model.batch_size))
+print("Suggested batch size:{}".format(model.batch_size))
 
 trainer.fit(model=model)
 trainer.test(ckpt_path='best')
-writer.flush()
 
-plot(model)
+#plot(model)
 
 # serialize the model to disk
-torch.save(model.model, args["model"])
+#torch.save(model.model, args["model"])

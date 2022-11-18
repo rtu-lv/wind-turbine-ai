@@ -5,6 +5,7 @@ from os import listdir
 from os.path import isfile, join
 import os, sys
 import re
+from sklearn.preprocessing import MinMaxScaler
 
 
 # %% Read dataset from Alya "results" folder and store it in Torch Tensor format
@@ -223,6 +224,15 @@ class AlyaDataset(Dataset):
 
         if use_cnn_a:
             self.estimate_porosity()
+
+    def transform_porosity(self):
+        self.y_data = torch.log(self.y_data)
+
+        #scaler = MinMaxScaler()
+        #for i in range(self.y_data.size(dim=1)):
+        #    v = self.y_data[:, i].reshape(-1, 1)
+        #    scaled_column = scaler.fit_transform(v)
+        #    self.y_data[:, i] = torch.tensor(scaled_column[:,0], dtype=torch.float32)
 
     # return size of the dataset
     def __len__(self):
