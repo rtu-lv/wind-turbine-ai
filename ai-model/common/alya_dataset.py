@@ -5,8 +5,9 @@ from os import listdir
 from os.path import isfile, join
 import os, sys
 import re
+import matplotlib.pyplot as plt
+import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-
 
 # %% Read dataset from Alya "results" folder and store it in Torch Tensor format
 
@@ -232,7 +233,43 @@ class AlyaDataset(Dataset):
         #for i in range(self.y_data.size(dim=1)):
         #    v = self.y_data[:, i].reshape(-1, 1)
         #    scaled_column = scaler.fit_transform(v)
-        #    self.y_data[:, i] = torch.tensor(scaled_column[:,0], dtype=torch.float32)
+        #    self.y_data[:, i] = torch.tensor(scaled_column[:,0], dtype=torch.float32)]
+
+    def plot_data(self):
+        pd_df = pd.DataFrame(self[:][4].numpy())
+        pd_df.columns = ['0', '1', '2', '3']
+
+        pd_df_log = np.log(pd_df)
+        pd_df_sqrt = np.sqrt(pd_df)
+
+        plt.style.use("ggplot")
+        figure, axis = plt.subplots(2, 2, figsize=(45, 30))
+        axis[0, 0].plot(pd_df['0'])
+        axis[0, 1].plot(pd_df['1'])
+        axis[1, 0].plot(pd_df['2'])
+        axis[1, 1].plot(pd_df['3'])
+        plt.savefig(fname='por_plots.png')
+
+        figure, axis = plt.subplots(2, 2, figsize=(45, 30))
+        axis[0, 0].hist(pd_df['0'], bins=50)
+        axis[0, 1].hist(pd_df['1'], bins=50)
+        axis[1, 0].hist(pd_df['2'], bins=50)
+        axis[1, 1].hist(pd_df['3'], bins=50)
+        plt.savefig(fname='por_histograms.png')
+
+        figure, axis = plt.subplots(2, 2, figsize=(45, 30))
+        axis[0, 0].hist(pd_df_log['0'], bins=50)
+        axis[0, 1].hist(pd_df_log['1'], bins=50)
+        axis[1, 0].hist(pd_df_log['2'], bins=50)
+        axis[1, 1].hist(pd_df_log['3'], bins=50)
+        plt.savefig(fname='por_histograms_log.png')
+
+        figure, axis = plt.subplots(2, 2, figsize=(45, 30))
+        axis[0, 0].hist(pd_df_sqrt['0'], bins=50)
+        axis[0, 1].hist(pd_df_sqrt['1'], bins=50)
+        axis[1, 0].hist(pd_df_sqrt['2'], bins=50)
+        axis[1, 1].hist(pd_df_sqrt['3'], bins=50)
+        plt.savefig(fname='por_histograms_sqrt.png')
 
     # return size of the dataset
     def __len__(self):

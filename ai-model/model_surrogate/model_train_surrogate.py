@@ -58,20 +58,6 @@ TRAIN_SPLIT = 0.8
 DATA_BASE_PATH = '../data/'
 
 
-class CombinedLoss(nn.Module):
-    def __init__(self, loss_function):
-        super(CombinedLoss, self).__init__()
-        self.lossFn = loss_function
-
-    def forward(self, inputs, targets):
-        n = inputs.size(dim=1)
-        loss = 0
-        for i in range(n):
-            square_difference = torch.square(inputs[:, i] - targets[:, i])
-            loss += torch.mean(square_difference)
-        return loss / n
-
-
 class ModuleSurrogate(pl.LightningModule):
     def __init__(self, batch_size):
         super().__init__()
@@ -98,8 +84,10 @@ class ModuleSurrogate(pl.LightningModule):
                 pickle.dump(self.train_dataset, f, pickle.HIGHEST_PROTOCOL)
                 pickle.dump(self.test_dataset, f, pickle.HIGHEST_PROTOCOL)
 
-        self.train_dataset.transform_porosity()
-        self.test_dataset.transform_porosity()
+        #self.train_dataset.transform_porosity()
+        #self.test_dataset.transform_porosity()
+
+        #self.train_dataset.plot_data()
 
         # calculate the train/validation split
         print("[INFO] generating the train/validation split...")
@@ -108,26 +96,19 @@ class ModuleSurrogate(pl.LightningModule):
         # %%
         (self.train_dataset, self.val_dataset) = random_split(self.train_dataset, [num_train_samples, num_val_samples])
 
-        self.lossFn = nn.MSELoss()
+        self.train_loss = nn.MSELoss()
+        self.val_loss = nn.MSELoss()
 
         self.train_accuracy = MeanMetric()
         self.val_accuracy = MeanMetric()
         self.test_accuracy = MeanMetric()
-
-        # initialize a dictionary to store training history
-        self.H = {
-            "train_loss": [],
-            "train_acc": [],
-            "val_loss": [],
-            "val_acc": []
-        }
 
     def train_dataloader(self):
         number_of_cores = multiprocessing.cpu_count() // 4
         return DataLoader(self.train_dataset, shuffle=True, batch_size=self.batch_size, num_workers=number_of_cores)
 
     def val_dataloader(self):
-        number_of_cores = multiprocessing.cpu_count() // 8
+        number_of_cores = multiprocessing.cpu_count() // 4
         return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=number_of_cores)
 
     def test_dataloader(self):
@@ -140,10 +121,10 @@ class ModuleSurrogate(pl.LightningModule):
         # perform a forward pass and calculate the training loss
         pred = self.model(x1, x2)
 
-        loss = self.lossFn(pred, y)
+        loss = self.train_loss(pred, y)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
 
-        self.train_accuracy(pred, y)
+        self.train_accuracy(pred / y)
         self.log("train_accuracy", self.train_accuracy, on_step=False, on_epoch=True)
 
         return loss
@@ -154,85 +135,35 @@ class ModuleSurrogate(pl.LightningModule):
         # make the predictions and calculate the validation loss
         pred = self.model(x1, x2)
 
-        loss = self.lossFn(pred, y)
+        loss = self.val_loss(pred, y)
         self.log("validation_loss", loss, on_step=False, on_epoch=True)
 
-        self.val_accuracy((pred / y).sum().item() / self.batch_size)
+        self.val_accuracy(pred / y)
         self.log("validation_accuracy", self.val_accuracy, on_step=False, on_epoch=True)
+
+        return loss
 
     def test_step(self, batch, batch_idx):
         x1, x2, x3, x4, y = batch
 
         pred = self.model(x1, x2)
 
-        loss = self.lossFn(pred, y)
+        loss = self.train_loss(pred, y)
         self.log("test_loss", loss)
 
-        self.test_accuracy((pred / y).sum().item() / self.batch_size)
+        self.test_accuracy(pred / y)
         self.log("test_accuracy", self.test_accuracy)
 
+        return loss
+
     def configure_optimizers(self):
-        # initialize our optimizer and loss function
+        # initialize our optimizer
         opt = AdamW(self.model.parameters(), lr=INIT_LR)
-        # opt = ASGD(model.parameters(), lr=INIT_LR, t0=500, weight_decay=0.01)
 
         sch1 = lr_scheduler.CosineAnnealingLR(opt, 500)
         sch2 = lr_scheduler.LambdaLR(opt, lr_lambda=(lambda ep: (ep * (1e-2 - 1) + EPOCHS) / EPOCHS))
 
         return [opt], [sch1, sch2]
-
-
-class ModelCallback(Callback):
-    def on_train_epoch_end(self, trainer, module):
-        train_loss = trainer.callback_metrics['train_loss'].cpu().detach().numpy()
-        module.H["train_loss"].append(train_loss)
-
-        train_accuracy = trainer.callback_metrics['train_accuracy'].cpu().detach().numpy()
-        module.H["train_acc"].append(train_accuracy)
-
-    def on_validation_epoch_end(self, trainer, module):
-        val_loss = trainer.callback_metrics['validation_loss'].cpu().detach().numpy()
-        module.H["val_loss"].append(val_loss)
-
-        val_acc = trainer.callback_metrics['validation_accuracy'].cpu().detach().numpy()
-        module.H["val_acc"].append(val_acc)
-
-
-def plot(model):
-    # plot the training loss and accuracy
-    plt.style.use("ggplot")
-    fig, ax1 = plt.subplots(figsize=(45, 15))
-    ax2 = ax1.twinx()
-    ax1.set_ylim([0, .1])
-    ax2.set_ylim([0, 2])
-    ax1.plot(model.H["train_loss"], label="train_loss", color="red")
-    ax1.plot(model.H["val_loss"], label="val_loss", color="orange")
-    ax2.plot(model.H["train_acc"], label="train_acc", color="blue")
-    ax2.plot(model.H["val_acc"], label="val_acc", color="green")
-    plt.title("Training Loss and Accuracy on Dataset")
-    plt.xlabel("Epoch #")
-    ax1.set_ylabel("Loss")
-    ax2.set_ylabel("Accuracy")
-    ax1.legend(loc="upper right")
-    ax2.legend(loc="upper left")
-    plt.savefig(args["plot"], bbox_inches='tight')
-
-    # %%
-
-    # plot the prediction vs. real Porosity
-#    plt.style.use("ggplot")
-#    fig, axs = plt.subplots(1, 3, figsize=(45, 15), sharey=True)
-#    axs[0].set_ylim([0, 1e5])
-#    for i in range(3):
-#        axs[i].set_xlim([0, 1e5])
-#    for i, dS in enumerate(Gdata):
-#        axs[i].scatter(Gdata[dS][1], Gdata[dS][2], color="blue")
-#        axs[i].plot([0, 1e5], [0, 1e5], linestyle=":", color="green")
-#        axs[i].set_xlabel("Real porosity")
-#        axs[i].set_title(dS)
-#    axs[0].set_ylabel("Predicted porosity")
-#    fig.suptitle("Predicted versus real porosity")
-#    plt.savefig(args["plot"] + "_comp", bbox_inches='tight')
 
 
 # set the device we will be using to train the model
@@ -242,16 +173,13 @@ print("Device:", device)
 DEF_BATCH_SIZE = 50
 
 model = ModuleSurrogate(batch_size=DEF_BATCH_SIZE)
-trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=EPOCHS,
-                     callbacks=[ModelCallback()], log_every_n_steps=DEF_BATCH_SIZE // 2)
-#auto_scale_batch_size="binsearch",
+trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=EPOCHS, auto_scale_batch_size="binsearch",
+                     log_every_n_steps=DEF_BATCH_SIZE)
 #trainer.tune(model=model)
 print("Suggested batch size:{}".format(model.batch_size))
 
 trainer.fit(model=model)
 trainer.test(ckpt_path='best')
-
-#plot(model)
 
 # serialize the model to disk
 #torch.save(model.model, args["model"])

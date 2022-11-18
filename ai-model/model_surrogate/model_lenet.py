@@ -1,7 +1,7 @@
 # import the necessary packages
 from torch.nn import Module
 from torch.nn import Conv2d
-from torch.nn import Linear, Sigmoid
+from torch.nn import Linear
 from torch.nn import MaxPool2d
 from torch.nn import LeakyReLU
 from torch import flatten
@@ -29,7 +29,6 @@ class LeNet(Module):
         self.max_pool = MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         self.rect_pool = MaxPool2d(kernel_size=(3, 1), stride=(3, 1))
         self.activFC = LeakyReLU()
-        self.activOut = Sigmoid()
 
         # initialize first set of CONV => RELU => POOL layers
         self.conv1a = Conv2d(in_channels=num_channels, out_channels=20,
@@ -103,8 +102,7 @@ class LeNet(Module):
         # pass the output to final layer to get our output predictions
         # IN:  x == 100
         # OUT: x == 1
-        x = self.fcOut(x)
-        output = self.activOut(x)
+        output = self.fcOut(x)
 
         # return the output regression
         return output
