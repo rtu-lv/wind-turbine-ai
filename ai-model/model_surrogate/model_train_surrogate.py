@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
 import torch
-from torchmetrics import MeanMetric
+from torchmetrics import R2Score
 from torch import nn
 from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
@@ -19,7 +19,7 @@ from torch.utils.data import random_split
 
 import multiprocessing
 
-from model_lenet import LeNet
+from model_cnn_surrogate import LeNet
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -84,10 +84,10 @@ class ModuleSurrogate(pl.LightningModule):
                 pickle.dump(self.train_dataset, f, pickle.HIGHEST_PROTOCOL)
                 pickle.dump(self.test_dataset, f, pickle.HIGHEST_PROTOCOL)
 
-        #self.train_dataset.transform_porosity()
-        #self.test_dataset.transform_porosity()
+        # self.train_dataset.transform_porosity()
+        # self.test_dataset.transform_porosity()
 
-        #self.train_dataset.plot_data()
+        # self.train_dataset.plot_data()
 
         # calculate the train/validation split
         print("[INFO] generating the train/validation split...")
@@ -96,12 +96,11 @@ class ModuleSurrogate(pl.LightningModule):
         # %%
         (self.train_dataset, self.val_dataset) = random_split(self.train_dataset, [num_train_samples, num_val_samples])
 
-        self.train_loss = nn.MSELoss()
-        self.val_loss = nn.MSELoss()
+        self.loss_function = nn.MSELoss()
 
-        self.train_accuracy = MeanMetric()
-        self.val_accuracy = MeanMetric()
-        self.test_accuracy = MeanMetric()
+        self.train_accuracy = R2Score(num_outputs=4)
+        self.val_accuracy = R2Score(num_outputs=4)
+        self.test_accuracy = R2Score(num_outputs=4)
 
     def train_dataloader(self):
         number_of_cores = multiprocessing.cpu_count() // 4
@@ -121,10 +120,10 @@ class ModuleSurrogate(pl.LightningModule):
         # perform a forward pass and calculate the training loss
         pred = self.model(x1, x2)
 
-        loss = self.train_loss(pred, y)
+        loss = self.loss_function(pred, y)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
 
-        self.train_accuracy(pred / y)
+        self.train_accuracy(pred, y)
         self.log("train_accuracy", self.train_accuracy, on_step=False, on_epoch=True)
 
         return loss
@@ -135,10 +134,10 @@ class ModuleSurrogate(pl.LightningModule):
         # make the predictions and calculate the validation loss
         pred = self.model(x1, x2)
 
-        loss = self.val_loss(pred, y)
+        loss = self.loss_function(pred, y)
         self.log("validation_loss", loss, on_step=False, on_epoch=True)
 
-        self.val_accuracy(pred / y)
+        self.val_accuracy(pred, y)
         self.log("validation_accuracy", self.val_accuracy, on_step=False, on_epoch=True)
 
         return loss
@@ -148,10 +147,10 @@ class ModuleSurrogate(pl.LightningModule):
 
         pred = self.model(x1, x2)
 
-        loss = self.train_loss(pred, y)
+        loss = self.loss_function(pred, y)
         self.log("test_loss", loss)
 
-        self.test_accuracy(pred / y)
+        self.test_accuracy(pred, y)
         self.log("test_accuracy", self.test_accuracy)
 
         return loss
@@ -175,11 +174,13 @@ DEF_BATCH_SIZE = 50
 model = ModuleSurrogate(batch_size=DEF_BATCH_SIZE)
 trainer = pl.Trainer(accelerator="gpu", devices=1, max_epochs=EPOCHS, auto_scale_batch_size="binsearch",
                      log_every_n_steps=DEF_BATCH_SIZE)
-#trainer.tune(model=model)
+# trainer.tune(model=model)
 print("Suggested batch size:{}".format(model.batch_size))
 
 trainer.fit(model=model)
 trainer.test(ckpt_path='best')
 
 # serialize the model to disk
-#torch.save(model.model, args["model"])
+torch.save(model.model, args["model"])
+#torch.onnx.export(model.model, model.train_dataset.dataset.get_input(), "cnnA.onnx", export_params=True,
+#                 input_names=['upstream', 'downstream'], output_names=['porosity'], opset_version=16)

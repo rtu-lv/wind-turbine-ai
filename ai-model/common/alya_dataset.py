@@ -271,6 +271,9 @@ class AlyaDataset(Dataset):
         axis[1, 1].hist(pd_df_sqrt['3'], bins=50)
         plt.savefig(fname='por_histograms_sqrt.png')
 
+    def get_input(self):
+        return self.x1_data, self.x2_data
+
     # return size of the dataset
     def __len__(self):
         return len(self.y_data)
