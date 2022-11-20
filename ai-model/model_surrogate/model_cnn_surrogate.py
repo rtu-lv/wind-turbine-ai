@@ -19,11 +19,11 @@ def _init_weights(module):
             module.bias.data.zero_()
 
 
-class LeNet(Module):
+class SurrogateCNN(Module):
 
     def __init__(self, num_channels):
         # call the parent constructor
-        super(LeNet, self).__init__()
+        super(SurrogateCNN, self).__init__()
 
         self.activConv = LeakyReLU()
         self.max_pool = MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
