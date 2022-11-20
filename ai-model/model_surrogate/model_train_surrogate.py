@@ -88,11 +88,12 @@ class SurrogateModel(pl.LightningModule):
             with open(data_cache_file, 'wb') as f:
                 pickle.dump(self.train_dataset, f, pickle.HIGHEST_PROTOCOL)
                 pickle.dump(self.test_dataset, f, pickle.HIGHEST_PROTOCOL)
-        # self.train_dataset.transform_porosity()
-        # self.test_dataset.transform_porosity()
-        # self.train_dataset.plot_data()
-        # calculate the train/validation split
 
+        #self.train_dataset.transform_porosity()
+        #self.test_dataset.transform_porosity()
+        # self.train_dataset.plot_data()
+
+        # calculate the train/validation split
         print("[INFO] generating the train/validation split...")
         num_train_samples = int(len(self.train_dataset) * TRAIN_SPLIT)
         num_val_samples = len(self.train_dataset) - num_train_samples
@@ -179,11 +180,10 @@ DEF_BATCH_SIZE = 50
 def train_surrogate_model(config, num_epochs, num_gpus):
     model = SurrogateModel(config)
 
-    metrics = {"loss": "ptl/val_loss", "mean_accuracy": "ptl/val_accuracy"}
-    callbacks = [LearningRateMonitor(logging_interval='step'),
-                 TuneReportCallback(metrics, on="validation_end"),
+    metrics = {"loss": "ptl/val_loss", "accuracy": "ptl/val_accuracy"}
+    callbacks = [LearningRateMonitor(logging_interval='step'), TuneReportCallback(metrics, on="validation_end"),
                  TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
-                 ]
+                ]
 
     trainer = pl.Trainer(accelerator="gpu", devices=num_gpus, max_epochs=num_epochs,
                          callbacks=callbacks, enable_progress_bar=True)
@@ -199,7 +199,7 @@ def tune_surrogate_model(num_epochs, num_samples):
 
     scheduler = ASHAScheduler(max_t=num_epochs, grace_period=1, reduction_factor=2)
 
-    analysis = tune.run(
+    result = tune.run(
         trainable,
         resources_per_trial={
             "cpu": 1,
@@ -213,17 +213,30 @@ def tune_surrogate_model(num_epochs, num_samples):
         name="tuning_logs",
         local_dir=os.getcwd())
 
-    print(analysis.best_config)
-    return analysis.best_config
+    best_trial = result.get_best_trial("loss", "min", "last")
+    print("Best trial config: {}".format(best_trial.config))
+    print("Best trial final validation loss: {}".format(best_trial.last_result["loss"]))
+    print("Best trial final validation accuracy: {}".format(best_trial.last_result["accuracy"]))
+
+    return best_trial
 
 
-best_config = tune_surrogate_model(EPOCHS, NUM_SAMPLES)
+best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES)
+best_trained_model = SurrogateModel(best_trial.config)
+best_checkpoint_dir = best_trial.checkpoint.dir_or_data
+
+#test_acc = test_accuracy(best_trained_model, device)
+#print("Best trial test set accuracy: {}".format(test_acc))
+
+print("--- Testing ---s")
+trainer = pl.Trainer(accelerator="gpu", devices=1)
+trainer.test(model=best_trained_model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
 
 # trainer.test(ckpt_path='best')
 
 # serialize the model to disk
 # torch.save(model.model, args["model"])
-best_model = SurrogateModel(best_config)
+best_model = SurrogateModel(best_trial.config)
 torch.onnx.export(best_model.model, best_model.train_dataset.dataset.get_input(), "cnn_surrogate.onnx",
                   export_params=True,
                   input_names=['upstream', 'downstream'], output_names=['porosity'])
