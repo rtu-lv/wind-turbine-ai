@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torchmetrics import MeanAbsoluteError
 
-from model_cnn_surrogate import SurrogateCNN
+from model_cnn import aLNetB
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -54,7 +54,7 @@ NUM_SAMPLES = 10
 DATA_BASE_PATH = '../data/'
 
 
-class SurrogateModel(pl.LightningModule):
+class HiresModel(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.batch_size = config["batch_size"]
@@ -64,9 +64,7 @@ class SurrogateModel(pl.LightningModule):
         if args["continue"] is not None:
             self.model = torch.load(args["model"])
         else:
-            self.model = SurrogateCNN(num_channels=2)
-
-        self.num_workers = 0#multiprocessing.cpu_count()
+            self.model = aLNetB(num_channels=2)
 
         self.__load_data()
 
@@ -103,14 +101,16 @@ class SurrogateModel(pl.LightningModule):
         (self.train_dataset, self.val_dataset) = random_split(self.train_dataset, [num_train_samples, num_val_samples])
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, shuffle=True, batch_size=self.batch_size, num_workers=self.num_workers)
+        number_of_cores = multiprocessing.cpu_count() // 4
+        return DataLoader(self.train_dataset, shuffle=True, batch_size=self.batch_size, num_workers=0)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
+        number_of_cores = multiprocessing.cpu_count() // 4
+        return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=0)
 
     def test_dataloader(self):
         number_of_cores = multiprocessing.cpu_count()
-        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=0)
 
     def training_step(self, batch, batch_idx):
         x1, x2, x3, x4, y = batch
@@ -160,6 +160,7 @@ class SurrogateModel(pl.LightningModule):
         return loss
 
     def configure_optimizers(self):
+        # initialize our optimizer
         opt = AdamW(self.model.parameters(), lr=self.lr)
 
         sch1 = lr_scheduler.CosineAnnealingLR(opt, 500)
@@ -169,76 +170,18 @@ class SurrogateModel(pl.LightningModule):
 
 
 # %%
+# set the device we will be using to train the model
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Device:", device)
+
 DEF_BATCH_SIZE = 50
 
-
-def train_surrogate_model(config, num_epochs, num_gpus):
-    model = SurrogateModel(config)
-
-    metrics = {"loss": "ptl/val_loss", "accuracy": "ptl/val_accuracy"}
-    callbacks = [LearningRateMonitor(logging_interval='step'), TuneReportCallback(metrics, on="validation_end"),
-                 TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
-                ]
-
-    trainer = pl.Trainer(accelerator="gpu", devices=num_gpus, max_epochs=num_epochs,
-                         callbacks=callbacks, enable_progress_bar=True)
-    trainer.fit(model=model)
-
-
-def tune_surrogate_model(num_epochs, num_samples):
-    config = {
-        "lr": tune.loguniform(1e-4, 1e-1),
-        "batch_size": tune.choice([32, 64, 128, 256])
-    }
-    trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=1)
-
-    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=1, reduction_factor=2)
-
-    result = tune.run(
-        trainable,
-        resources_per_trial={
-            "cpu": 1,
-            "gpu": 1
-        },
-        scheduler=scheduler,
-        metric="loss",
-        mode="min",
-        config=config,
-        num_samples=num_samples,
-        name="tuning_logs",
-        local_dir=os.getcwd())
-
-    best_trial = result.get_best_trial("loss", "min", "last")
-    print("Best trial config: {}".format(best_trial.config))
-    print("Best trial final validation loss: {}".format(best_trial.last_result["loss"]))
-    print("Best trial final validation accuracy: {}".format(best_trial.last_result["accuracy"]))
-
-    return best_trial
-
-
-def tune_and_test():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("Device:", device)
-
-    best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES)
-    best_trained_model = SurrogateModel(best_trial.config)
-    best_checkpoint_dir = best_trial.checkpoint.dir_or_data
-
-    # test_acc = test_accuracy(best_trained_model, device)
-    # print("Best trial test set accuracy: {}".format(test_acc))
-
-    print("--- Testing surrogate model ---s")
-    trainer = pl.Trainer(accelerator="gpu", devices=1)
-    trainer.test(model=best_trained_model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
-
-    # serialize the model to disk
-    # torch.save(model.model, args["model"])
-    # torch.onnx.export(best_model.model, best_model.train_dataset.dataset.get_input(), "cnn_surrogate.onnx",
-    #                  export_params=True,
-    #                  input_names=['upstream', 'downstream'], output_names=['porosity'])
-
-
-if __name__ == "__main__":
-    tune_and_test()
-
-
+# serialize the model to disk
+# torch.save(model.model, args["model"])
+best_model = SurrogateModel({
+        "lr": 0.0001,
+        "batch_size": 64
+    })
+torch.onnx.export(best_model.model, best_model.train_dataset.dataset.get_input(), "cnn_surrogate.onnx",
+                  export_params=True,
+                  input_names=['upstream', 'downstream'], output_names=['porosity'])

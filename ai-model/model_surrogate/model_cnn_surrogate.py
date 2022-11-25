@@ -1,11 +1,7 @@
 # import the necessary packages
-from torch.nn import Module
-from torch.nn import Conv2d
-from torch.nn import Linear
-from torch.nn import MaxPool2d
-from torch.nn import LeakyReLU
-from torch import flatten
 from torch import cat
+from torch import flatten
+from torch.nn import Module, Conv2d, Linear, MaxPool2d, LeakyReLU, AdaptiveMaxPool2d, BatchNorm1d
 
 
 def _init_weights(module):
@@ -27,27 +23,29 @@ class SurrogateCNN(Module):
 
         self.activConv = LeakyReLU()
         self.max_pool = MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
-        self.rect_pool = MaxPool2d(kernel_size=(3, 1), stride=(3, 1))
+        self.rect_pool = MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         self.activFC = LeakyReLU()
 
         # initialize first set of CONV => RELU => POOL layers
         self.conv1a = Conv2d(in_channels=num_channels, out_channels=20,
-                             kernel_size=(5, 5), stride=(2, 2))
+                             kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
         self.conv1b = Conv2d(in_channels=num_channels, out_channels=20,
-                             kernel_size=(9, 5), stride=(2, 2))
+                             kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
 
         # initialize second set of CONV (=> RELU => POOL layers)
         self.conv2a = Conv2d(in_channels=20, out_channels=50,
-                             kernel_size=(4, 5), stride=(1, 2))
+                             kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
         self.conv2b = Conv2d(in_channels=20, out_channels=50,
-                             kernel_size=(5, 5), stride=(2, 2))
+                             kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
 
         # initialize separate set of FC => RELU layers
-        self.fca = Linear(in_features=2100, out_features=200)
-        self.fcb = Linear(in_features=2700, out_features=300)
+        self.fca = Linear(in_features=3000, out_features=200)
+        self.fcb = Linear(in_features=3600, out_features=300)
 
         # initialize first common linear layer FC => RELU
         self.fc1 = Linear(in_features=500, out_features=100)
+
+        self.bn = BatchNorm1d(num_features=100)
 
         # get output layer as a single value
         self.fcOut = Linear(in_features=100, out_features=4)
@@ -97,6 +95,7 @@ class SurrogateCNN(Module):
         # OUT: x == 100
         x = cat((xa, xb), 1)
         x = self.fc1(x)
+        x = self.bn(x)
         x = self.activFC(x)
 
         # pass the output to final layer to get our output predictions
