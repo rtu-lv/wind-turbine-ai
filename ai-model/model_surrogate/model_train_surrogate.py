@@ -185,21 +185,23 @@ def train_surrogate_model(config, num_epochs, num_gpus):
     trainer.fit(model=model)
 
 
-def tune_surrogate_model(num_epochs, num_samples):
+def tune_surrogate_model(num_epochs, num_samples, num_cpus, num_gpus):
     config = {
         "lr": tune.loguniform(1e-4, 1e-1),
         "batch_size": tune.choice([32, 64, 128, 256])
     }
-    trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=1)
+    trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=num_gpus)
 
     scheduler = ASHAScheduler(max_t=num_epochs, grace_period=1, reduction_factor=2)
 
+    resources_per_trial = {
+        "cpu": num_cpus,
+        "gpu": num_gpus
+    }
+
     result = tune.run(
         trainable,
-        resources_per_trial={
-            "cpu": 1,
-            "gpu": 1
-        },
+        resources_per_trial=resources_per_trial,
         scheduler=scheduler,
         metric="loss",
         mode="min",
@@ -217,18 +219,17 @@ def tune_surrogate_model(num_epochs, num_samples):
 
 
 def tune_and_test():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("Device:", device)
+    num_gpus = torch.cuda.device_count()
 
-    best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES)
+    best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES, num_cpus=multiprocessing.cpu_count(), num_gpus=num_gpus)
     best_trained_model = SurrogateModel(best_trial.config)
     best_checkpoint_dir = best_trial.checkpoint.dir_or_data
 
     # test_acc = test_accuracy(best_trained_model, device)
     # print("Best trial test set accuracy: {}".format(test_acc))
 
-    print("--- Testing surrogate model ---s")
-    trainer = pl.Trainer(accelerator="gpu", devices=1)
+    print("--- Testing surrogate model ---")
+    trainer = pl.Trainer(accelerator="gpu", devices=num_gpus)
     trainer.test(model=best_trained_model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
 
     # serialize the model to disk
