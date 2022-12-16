@@ -11,14 +11,13 @@ import matplotlib
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import LearningRateMonitor
-from ray import tune
-from ray.tune.integration.pytorch_lightning import TuneReportCallback, TuneReportCheckpointCallback
-from ray.tune.schedulers import ASHAScheduler
 from torch import nn
 from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torchmetrics import MeanAbsoluteError
+import optuna
+from optuna.integration import PyTorchLightningPruningCallback
 
 from model_cnn_surrogate import SurrogateCNN
 
@@ -42,6 +41,10 @@ ap.add_argument("-c", "--continue", type=float, required=False,
                 help="use to continue training with a given learning rate")
 ap.add_argument("-e", "--epochs", type=int, required=True,
                 help="Number of epochs to train")
+ap.add_argument("-t", "--trials", type=int, required=True,
+                help="Number of trials for model tuning")
+ap.add_argument("-db", "--db_path", type=str, required=True,
+                help="path of alya data")
 args = vars(ap.parse_args())
 
 # define the train and val splits
@@ -49,9 +52,9 @@ TRAIN_SPLIT = 0.8
 
 # define training hyper-parameters
 EPOCHS = args["epochs"]
-NUM_SAMPLES = 10
+NUM_TRIALS = args["trials"]
 
-DATA_BASE_PATH = '../data/'
+DATA_BASE_PATH = args["db_path"]
 
 
 class SurrogateModel(pl.LightningModule):
@@ -171,66 +174,58 @@ class SurrogateModel(pl.LightningModule):
 # %%
 DEF_BATCH_SIZE = 50
 
+def objective(trial: optuna.trial.Trial) -> float:
+    config = {
+        "lr": trial.suggest_loguniform("lr", 1e-4, 1e-1),
+        "batch_size": trial.suggest_categorical("batch_size", [32, 64, 128, 256])
+    }
 
-def train_surrogate_model(config, num_epochs, num_gpus):
     model = SurrogateModel(config)
 
-    metrics = {"loss": "ptl/val_loss", "accuracy": "ptl/val_accuracy"}
-    callbacks = [LearningRateMonitor(logging_interval='step'), TuneReportCallback(metrics, on="validation_end"),
-                 TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
-                ]
+    callbacks = [LearningRateMonitor(logging_interval='step'),
+                 PyTorchLightningPruningCallback(trial, monitor="validation_loss")]
 
-    trainer = pl.Trainer(accelerator="gpu", devices=num_gpus, max_epochs=num_epochs,
+    trainer = pl.Trainer(accelerator="gpu" if torch.cuda.is_available() else "cpu",
+                         devices=1 if torch.cuda.is_available() else None,
+                         max_epochs=EPOCHS,
                          callbacks=callbacks, enable_progress_bar=True)
     trainer.fit(model=model)
 
-
-def tune_surrogate_model(num_epochs, num_samples, num_cpus, num_gpus):
-    config = {
-        "lr": tune.loguniform(1e-4, 1e-1),
-        "batch_size": tune.choice([32, 64, 128, 256])
-    }
-    trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=num_gpus)
-
-    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=1, reduction_factor=2)
-
-    resources_per_trial = {
-        "cpu": num_cpus,
-        "gpu": num_gpus
-    }
-
-    result = tune.run(
-        trainable,
-        resources_per_trial=resources_per_trial,
-        scheduler=scheduler,
-        metric="loss",
-        mode="min",
-        config=config,
-        num_samples=num_samples,
-        name="tuning_logs",
-        local_dir=os.getcwd())
-
-    best_trial = result.get_best_trial("loss", "min", "last")
-    print("Best trial config: {}".format(best_trial.config))
-    print("Best trial final validation loss: {}".format(best_trial.last_result["loss"]))
-    print("Best trial final validation accuracy: {}".format(best_trial.last_result["accuracy"]))
-
-    return best_trial
+    return trainer.callback_metrics["validation_loss"].item()
 
 
 def tune_and_test():
-    num_gpus = torch.cuda.device_count()
+    pruner: optuna.pruners.BasePruner = optuna.pruners.NopPruner()
 
-    best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES, num_cpus=multiprocessing.cpu_count(), num_gpus=num_gpus)
-    best_trained_model = SurrogateModel(best_trial.config)
-    best_checkpoint_dir = best_trial.checkpoint.dir_or_data
+    study = optuna.create_study(direction="maximize", pruner=pruner)
+    study.optimize(objective, n_trials=NUM_TRIALS, timeout=600)
+
+    print("Number of finished trials: {}".format(len(study.trials)))
+
+    print("Best trial:")
+    trial = study.best_trial
+
+    print("  Value: {}".format(trial.value))
+
+    print("  Params: ")
+    for key, value in trial.params.items():
+        print("    {}: {}".format(key, value))
+
+    best_trained_model = SurrogateModel(trial.params)
+    best_checkpoint_dir = os.path.join("lightning_logs", "version_" + str(trial.number))
+    best_checkpoint_dir = os.path.join(best_checkpoint_dir, "checkpoints")
+    ckpt_files = os.listdir(best_checkpoint_dir)
 
     # test_acc = test_accuracy(best_trained_model, device)
     # print("Best trial test set accuracy: {}".format(test_acc))
 
     print("--- Testing surrogate model ---")
-    trainer = pl.Trainer(accelerator="gpu", devices=num_gpus)
-    trainer.test(model=best_trained_model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
+    trainer = pl.Trainer(accelerator="gpu" if torch.cuda.is_available() else "cpu",
+                         devices=1 if torch.cuda.is_available() else None)
+    trainer.test(model=best_trained_model, ckpt_path=os.path.join(best_checkpoint_dir, ckpt_files[0]))
+
+    #fig = optuna.visualization.plot_intermediate_values(study)
+    #fig.show()
 
     # serialize the model to disk
     # torch.save(model.model, args["model"])
