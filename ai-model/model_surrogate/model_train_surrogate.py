@@ -195,10 +195,10 @@ def objective(trial: optuna.trial.Trial) -> float:
 
 
 def tune_and_test():
-    pruner: optuna.pruners.BasePruner = optuna.pruners.NopPruner()
+    pruner: optuna.pruners.BasePruner = optuna.pruners.MedianPruner()
 
     study = optuna.create_study(direction="maximize", pruner=pruner)
-    study.optimize(objective, n_trials=NUM_TRIALS, timeout=600)
+    study.optimize(objective, n_trials=NUM_TRIALS)
 
     print("Number of finished trials: {}".format(len(study.trials)))
 
