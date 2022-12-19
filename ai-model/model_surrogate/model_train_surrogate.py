@@ -42,6 +42,10 @@ ap.add_argument("-c", "--continue", type=float, required=False,
                 help="use to continue training with a given learning rate")
 ap.add_argument("-e", "--epochs", type=int, required=True,
                 help="Number of epochs to train")
+ap.add_argument("-t", "--trials", type=int, required=True,
+                help="Number of trials for hyperparameter optimization")
+ap.add_argument("-db", "--db_path", type=str, required=True,
+                help="path of alya data")
 args = vars(ap.parse_args())
 
 # define the train and val splits
@@ -49,10 +53,9 @@ TRAIN_SPLIT = 0.8
 
 # define training hyper-parameters
 EPOCHS = args["epochs"]
-NUM_SAMPLES = 10
+NUM_SAMPLES = args["trials"]
 
-DATA_BASE_PATH = '../data/'
-
+DATA_BASE_PATH = args["db_path"]
 
 class SurrogateModel(pl.LightningModule):
     def __init__(self, config):
@@ -85,8 +88,8 @@ class SurrogateModel(pl.LightningModule):
                 self.train_dataset = pickle.load(f)
                 self.test_dataset = pickle.load(f)
         else:
-            self.train_dataset = AlyaDataset(DATA_BASE_PATH + "surrogate_train")
-            self.test_dataset = AlyaDataset(DATA_BASE_PATH + "surrogate_test")
+            self.train_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, "surrogate_train"))
+            self.test_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, "surrogate_test"))
             with open(data_cache_file, 'wb') as f:
                 pickle.dump(self.train_dataset, f, pickle.HIGHEST_PROTOCOL)
                 pickle.dump(self.test_dataset, f, pickle.HIGHEST_PROTOCOL)
