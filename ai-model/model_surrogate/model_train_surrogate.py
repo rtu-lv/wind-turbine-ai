@@ -88,8 +88,8 @@ class SurrogateModel(pl.LightningModule):
                 self.train_dataset = pickle.load(f)
                 self.test_dataset = pickle.load(f)
         else:
-            self.train_dataset = AlyaDataset(DATA_BASE_PATH + "surrogate_train")
-            self.test_dataset = AlyaDataset(DATA_BASE_PATH + "surrogate_test")
+            self.train_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, "surrogate_train"))
+            self.test_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, "surrogate_test"))
             with open(data_cache_file, 'wb') as f:
                 pickle.dump(self.train_dataset, f, pickle.HIGHEST_PROTOCOL)
                 pickle.dump(self.test_dataset, f, pickle.HIGHEST_PROTOCOL)

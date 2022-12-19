@@ -1,13 +1,16 @@
-import numpy as np
-import torch
-from torch.utils.data import Dataset
+import os
+import re
+import sys
 from os import listdir
 from os.path import isfile, join
-import os, sys
-import re
+import time
+
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
+import torch
+from torch.utils.data import Dataset
+
 
 # %% Read dataset from Alya "results" folder and store it in Torch Tensor format
 
@@ -120,7 +123,7 @@ def parse_run_variables(file):
         #         v_dict["Por"] = [float(p) for p in porMat]
         #         count = count + 1
 
-        if (count == 3): break  # Only 3 lines have to be read
+        if count == 3: break  # Only 3 lines have to be read
 
     return v_dict
 
@@ -179,6 +182,8 @@ class AlyaDataset(Dataset):
         self.vIn = []  # simulation V modulus set
         self.ang = []  # simulation V angle set
 
+        start_time = time.time()
+
         # Process all the files inside folder
         for f in file_list:
             # read run variables 'vIn', 'ang' and '[Por]' into a dictionary
@@ -198,7 +203,10 @@ class AlyaDataset(Dataset):
             # store porosity matrix in temporal list
             tmp_y.append([p / self.POR_NORM for p in run_vars["Por"]])
 
-            # Convert list data into pyTorch tensor file format
+        elapsed_time = time.time() - start_time
+        print("Alya files loaded in %f seconds" % elapsed_time)
+
+        # Convert list data into pyTorch tensor file format
         # for [Por] = [p1, p2, p3, p4]
         # Get 2D array [[y1...y4][y2...y5]...[yn...yn+3]]
         arr_y = np.array(tmp_y).reshape(-1, 4)
@@ -229,8 +237,8 @@ class AlyaDataset(Dataset):
     def transform_porosity(self):
         self.y_data = torch.log(self.y_data)
 
-        #scaler = MinMaxScaler()
-        #for i in range(self.y_data.size(dim=1)):
+        # scaler = MinMaxScaler()
+        # for i in range(self.y_data.size(dim=1)):
         #    v = self.y_data[:, i].reshape(-1, 1)
         #    scaled_column = scaler.fit_transform(v)
         #    self.y_data[:, i] = torch.tensor(scaled_column[:,0], dtype=torch.float32)]
