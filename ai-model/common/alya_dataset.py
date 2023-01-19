@@ -5,6 +5,9 @@ from os import listdir
 from os.path import isfile, join
 import time
 
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import as_completed
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -16,29 +19,28 @@ from torch.utils.data import Dataset
 
 # get vector fields (3 channels: vx, vy, p) from an alya results file
 def get_fields(file):
-    with open(file, 'r') as f:  # Open file with field data
-        lines = f.readlines()  # read all the lines
-
     dataUS = []  # Init Upstream data list
     dataDS = []  # Init Downstream data list
 
     # get Upstream and downstream data from file
     UPS_flag = False
     DWS_flag = False
-    for i, l in enumerate(lines):
-        if (l.split()[0] == "UPSTREAM"):  # Search for Upstream data start
-            UPS_flag = True  # Flag start of Upstream data
-        elif (UPS_flag):  # Read Upstream data
-            # Start of Downstream data
-            if (l.split()[0] == "DOWNSTREAM"):
-                UPS_flag = False
-                DWS_flag = True
-            else:
+
+    with open(file, 'r') as f:  # Open file with field data
+        for line in f:
+            if line.split()[0] == "UPSTREAM":  # Search for Upstream data start
+                UPS_flag = True  # Flag start of Upstream data
+            elif UPS_flag:  # Read Upstream data
+                # Start of Downstream data
+                if line.split()[0] == "DOWNSTREAM":
+                    UPS_flag = False
+                    DWS_flag = True
+                else:
+                    # Append [Xcoord, Ycoord, Vx, Vy, P] from each line to dataUS
+                    dataUS.append([float(d) for d in line.split()])
+            elif DWS_flag:
                 # Append [Xcoord, Ycoord, Vx, Vy, P] from each line to dataUS
-                dataUS.append([float(d) for d in l.split()])
-        elif (DWS_flag):
-            # Append [Xcoord, Ycoord, Vx, Vy, P] from each line to dataUS
-            dataDS.append([float(d) for d in l.split()])
+                dataDS.append([float(d) for d in line.split()])
 
     # Convert to numpy arrays
     np_dataUS = np.array(dataUS)
@@ -128,6 +130,29 @@ def parse_run_variables(file):
     return v_dict
 
 
+def load_file(dataset, folder, f):
+    # read run variables 'vIn', 'ang' and '[Por]' into a dictionary
+    run_vars = parse_run_variables(join(folder, f))
+
+    # store run variables (for debugging purposes)
+    dataset.vIn.append(run_vars["vIn"])
+    dataset.ang.append(run_vars["ang"])
+
+    # get Upwind and Downwind velocity and pressure fields
+    x1, x2, x3, x4 = get_fields(join(folder, f))
+
+    return x1, x2, x3, x4, run_vars
+
+
+def load_files(dataset, folder, files):
+    data_list = list()
+    # load each file
+    for f in files:
+        x1, x2, x3, x4, run_vars = load_file(dataset, folder, f)
+        data_list.append((x1, x2, x3, x4, run_vars))
+    return data_list
+
+
 class AlyaDataset(Dataset):
     """ Read the files in folder and get the data in torch dataset format"""
 
@@ -172,7 +197,7 @@ class AlyaDataset(Dataset):
 
     # Initialization function needs a folder containing the results files
     # from Alya
-    def __init__(self, folder, use_cnn_a=False):
+    def __init__(self, folder, remote_data, use_cnn_a=False):
         file_list = [f for f in listdir(folder) if isfile(join(folder, f))]
         tmp_x1 = []  # Input variable x1 == V field Upwind
         tmp_x2 = []  # Input variable x2 == V field Downwind
@@ -184,24 +209,31 @@ class AlyaDataset(Dataset):
 
         start_time = time.time()
 
-        # Process all the files inside folder
-        for f in file_list:
-            # read run variables 'vIn', 'ang' and '[Por]' into a dictionary
-            run_vars = parse_run_variables(join(folder, f))
+        n_workers = os.cpu_count() if remote_data else 2
+        chunk_size = round(len(file_list) / n_workers)
 
-            # store run variables (for debugging purposes)
-            self.vIn.append(run_vars["vIn"])
-            self.ang.append(run_vars["ang"])
+        with ThreadPoolExecutor(n_workers) as executor:
+            futures = list()
+            # split the load operations into chunks
+            for i in range(0, len(file_list), chunk_size):
+                # select a chunk of filenames
+                filepaths = file_list[i:(i + chunk_size)]
 
-            # get Upwind and Downwind velocity and pressure fields
-            x1, x2, x3, x4 = get_fields(join(folder, f))
-            # store in temporal lists
-            tmp_x1.append(x1)
-            tmp_x2.append(x2)
-            tmp_x3.append(x3)
-            tmp_x4.append(x4)
-            # store porosity matrix in temporal list
-            tmp_y.append([p / self.POR_NORM for p in run_vars["Por"]])
+                # submit the task
+                future = executor.submit(load_files, self, folder, filepaths)
+                futures.append(future)
+
+            for future in as_completed(futures):
+                data_list = future.result()
+
+                for x1, x2, x3, x4, run_vars in data_list:
+                    # store in temporal lists
+                    tmp_x1.append(x1)
+                    tmp_x2.append(x2)
+                    tmp_x3.append(x3)
+                    tmp_x4.append(x4)
+                    # store porosity matrix in temporal list
+                    tmp_y.append([p / self.POR_NORM for p in run_vars["Por"]])
 
         elapsed_time = time.time() - start_time
         print("Alya files loaded in %f seconds" % elapsed_time)
@@ -233,6 +265,7 @@ class AlyaDataset(Dataset):
 
         if use_cnn_a:
             self.estimate_porosity()
+
 
     def transform_porosity(self):
         self.y_data = torch.log(self.y_data)
