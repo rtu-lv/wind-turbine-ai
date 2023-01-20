@@ -57,6 +57,7 @@ NUM_SAMPLES = args["trials"]
 
 DATA_BASE_PATH = args["db_path"]
 
+
 class SurrogateModel(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
@@ -88,11 +89,7 @@ class SurrogateModel(pl.LightningModule):
                 self.train_dataset = pickle.load(f)
                 self.test_dataset = pickle.load(f)
         else:
-            self.train_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, "surrogate_train"))
-            self.test_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, "surrogate_test"))
-            with open(data_cache_file, 'wb') as f:
-                pickle.dump(self.train_dataset, f, pickle.HIGHEST_PROTOCOL)
-                pickle.dump(self.test_dataset, f, pickle.HIGHEST_PROTOCOL)
+            raise Exception("Alya cached data file not found")
 
         #self.train_dataset.transform_porosity()
         #self.test_dataset.transform_porosity()
@@ -221,7 +218,21 @@ def tune_surrogate_model(num_epochs, num_samples, num_cpus, num_gpus):
     return best_trial
 
 
+def load_and_cache_data(data_cache_file):
+    print("[INFO] loading and caching Alya data files...")
+
+    train_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, "surrogate_train"))
+    test_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, "surrogate_test"))
+    with open(data_cache_file, 'wb') as f:
+        pickle.dump(train_dataset, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(test_dataset, f, pickle.HIGHEST_PROTOCOL)
+
+
 def tune_and_test():
+    data_cache_file = join(current_dir, args["data"])
+    if not exists(data_cache_file):
+        load_and_cache_data(data_cache_file)
+
     num_gpus = torch.cuda.device_count()
 
     best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES, num_cpus=multiprocessing.cpu_count(), num_gpus=num_gpus)
