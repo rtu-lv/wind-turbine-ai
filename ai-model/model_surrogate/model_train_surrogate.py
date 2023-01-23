@@ -85,9 +85,15 @@ class SurrogateModel(pl.LightningModule):
         print("[INFO] loading the Alya Surrogate dataset...")
         data_cache_file = join(current_dir, args["data"])
         if exists(data_cache_file):
-            with open(data_cache_file, 'rb') as f:
-                self.train_dataset = pickle.load(f)
-                self.test_dataset = pickle.load(f)
+            try:
+                with open(data_cache_file, 'rb') as f:
+                    self.train_dataset = pickle.load(f)
+                    self.test_dataset = pickle.load(f)
+            except OSError as error:
+                print(error)
+                with open(data_cache_file, 'rb') as f:
+                    self.train_dataset = pickle.load(f)
+                    self.test_dataset = pickle.load(f)
         else:
             raise Exception("Alya cached data file not found")
 
@@ -247,7 +253,7 @@ def tune_and_test():
     # print("Best trial test set accuracy: {}".format(test_acc))
 
     print("--- Testing surrogate model ---")
-    trainer = pl.Trainer(accelerator="gpu", devices=num_gpus)
+    trainer = pl.Trainer(accelerator="gpu" if torch.cuda.is_available() else "cpu", devices=num_gpus)
     trainer.test(model=best_trained_model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
 
     # serialize the model to disk
