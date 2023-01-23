@@ -180,7 +180,8 @@ def train_surrogate_model(config, num_epochs, num_gpus):
                  TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
                 ]
 
-    trainer = pl.Trainer(accelerator="gpu", devices=num_gpus, max_epochs=num_epochs,
+    trainer = pl.Trainer(accelerator="gpu" if torch.cuda.is_available() else "cpu",
+                         devices=num_gpus, max_epochs=num_epochs,
                          callbacks=callbacks, enable_progress_bar=True)
     trainer.fit(model=model)
 
@@ -229,6 +230,9 @@ def load_and_cache_data(data_cache_file):
 
 
 def tune_and_test():
+    if not torch.cuda.is_available():
+        print("CUDA not available")
+
     data_cache_file = join(current_dir, args["data"])
     if not exists(data_cache_file):
         load_and_cache_data(data_cache_file)
