@@ -5,10 +5,9 @@ echo HOSTNAME=$(hostname) TASKNUM=$PBS_TASKNUM NODENUM=$PBS_NODENUM
 module load conda
 source activate raise_windturbine
 
-#module load cuda/cuda-10.2
-#module load cuda/cuda-11.4
+module load cuda
 
-nvidia-smi
+#nvidia-smi
 
 cd $PBS_O_WORKDIR
 echo PBS_O_WORKDIR=$PBS_O_WORKDIR

@@ -45,7 +45,11 @@ ap.add_argument("-e", "--epochs", type=int, required=True,
 ap.add_argument("-t", "--trials", type=int, required=True,
                 help="Number of trials for hyperparameter optimization")
 ap.add_argument("-db", "--db_path", type=str, required=True,
-                help="path of alya data")
+                help="Path of alya data files")
+ap.add_argument("-cpus", "--num_cpus", type=int, required=False,
+                help="Number of CPUs to use")
+ap.add_argument("-gpus", "--num_gpus", type=int, required=False,
+                help="Number of GPUs to use")
 args = vars(ap.parse_args())
 
 # define the train and val splits
@@ -57,6 +61,14 @@ NUM_SAMPLES = args["trials"]
 
 DATA_BASE_PATH = args["db_path"]
 
+if not torch.cuda.is_available():
+    print("[WARN] CUDA is not available")
+
+NUM_CPUS = multiprocessing.cpu_count() if (args["num_cpus"] is None) else args["num_cpus"]
+NUM_GPUS = torch.cuda.device_count() if (args["num_gpus"] is None or not torch.cuda.is_available()) else args["num_gpus"]
+
+print("Number of CPUs to be used: {}".format(NUM_CPUS))
+print("Number of GPUs to be used: {}".format(NUM_GPUS))
 
 class SurrogateModel(pl.LightningModule):
     def __init__(self, config):
@@ -115,7 +127,6 @@ class SurrogateModel(pl.LightningModule):
         return DataLoader(self.val_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
 
     def test_dataloader(self):
-        number_of_cores = multiprocessing.cpu_count()
         return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
 
     def training_step(self, batch, batch_idx):
@@ -186,24 +197,24 @@ def train_surrogate_model(config, num_epochs, num_gpus):
                  TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
                 ]
 
-    trainer = pl.Trainer(accelerator="gpu" if torch.cuda.is_available() else "cpu",
+    trainer = pl.Trainer(accelerator="gpu" if NUM_GPUS > 0 else "cpu",
                          devices=num_gpus, max_epochs=num_epochs,
                          callbacks=callbacks, enable_progress_bar=True)
     trainer.fit(model=model)
 
 
-def tune_surrogate_model(num_epochs, num_samples, num_cpus, num_gpus):
+def tune_surrogate_model(num_epochs, num_samples):
     config = {
         "lr": tune.loguniform(1e-4, 1e-1),
         "batch_size": tune.choice([32, 64, 128, 256])
     }
-    trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=num_gpus)
+    trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=NUM_GPUS)
 
     scheduler = ASHAScheduler(max_t=num_epochs, grace_period=1, reduction_factor=2)
 
     resources_per_trial = {
-        "cpu": num_cpus,
-        "gpu": num_gpus
+        "cpu": NUM_CPUS,
+        "gpu": NUM_GPUS
     }
 
     result = tune.run(
@@ -238,16 +249,11 @@ def load_and_cache_data(data_cache_file):
 
 
 def tune_and_test():
-    if not torch.cuda.is_available():
-        print("CUDA not available")
-
     data_cache_file = join(current_dir, args["data"])
     if not exists(data_cache_file):
         load_and_cache_data(data_cache_file)
 
-    num_gpus = torch.cuda.device_count()
-
-    best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES, num_cpus=multiprocessing.cpu_count(), num_gpus=num_gpus)
+    best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES)
     best_trained_model = SurrogateModel(best_trial.config)
     best_checkpoint_dir = best_trial.checkpoint.dir_or_data
 
@@ -255,7 +261,7 @@ def tune_and_test():
     # print("Best trial test set accuracy: {}".format(test_acc))
 
     print("--- Testing surrogate model ---")
-    trainer = pl.Trainer(accelerator="gpu" if torch.cuda.is_available() else "cpu", devices=num_gpus)
+    trainer = pl.Trainer(accelerator="gpu" if NUM_GPUS > 0 else "cpu", devices=NUM_GPUS)
     trainer.test(model=best_trained_model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
 
     # serialize the model to disk
