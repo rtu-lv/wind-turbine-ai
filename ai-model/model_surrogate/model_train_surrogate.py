@@ -216,7 +216,7 @@ def tune_surrogate_model(num_epochs, num_samples, num_cpus, num_gpus):
         num_samples=num_samples,
         name="tuning_logs",
         local_dir=os.getcwd(),
-        resume='LOCAL+ERRORED'
+        resume='AUTO+ERRORED'
     )
 
     best_trial = result.get_best_trial("loss", "min", "last")
