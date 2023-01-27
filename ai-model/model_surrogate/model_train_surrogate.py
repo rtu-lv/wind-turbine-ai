@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# set the matplotlib backend so figures can be saved in the background
 import argparse
 import multiprocessing
 import os
@@ -7,7 +6,6 @@ import pickle
 import sys
 from os.path import exists, join
 
-import matplotlib
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import LearningRateMonitor
@@ -26,8 +24,6 @@ current_dir = os.path.dirname(os.path.realpath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 from common.alya_dataset import AlyaDataset
-
-matplotlib.use("agg")
 
 # Used to force same split each run between validation and training
 torch.manual_seed(42)
@@ -60,6 +56,8 @@ EPOCHS = args["epochs"]
 NUM_SAMPLES = args["trials"]
 
 DATA_BASE_PATH = args["db_path"]
+DATA_TRAIN_SUBDIR = "surrogate_train"
+DATA_TEST_SUBDIR = "surrogate_test"
 
 if not torch.cuda.is_available():
     print("[WARN] CUDA is not available")
@@ -237,12 +235,11 @@ def tune_surrogate_model(num_epochs, num_samples):
 
     return best_trial
 
-
 def load_and_cache_data(data_cache_file):
     print("[INFO] loading and caching Alya data files...")
 
-    train_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, "surrogate_train"))
-    test_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, "surrogate_test"))
+    train_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, DATA_TRAIN_SUBDIR))
+    test_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, DATA_TEST_SUBDIR))
     with open(data_cache_file, 'wb') as f:
         pickle.dump(train_dataset, f, pickle.HIGHEST_PROTOCOL)
         pickle.dump(test_dataset, f, pickle.HIGHEST_PROTOCOL)

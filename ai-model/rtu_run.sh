@@ -20,7 +20,7 @@ export PYTHONPATH=/mnt/home/arnisl/raise/wind-turbine-ai/ai-model
 cd $PYTHONPATH/model_surrogate
 pwd
 
-./run_train_surrogate_local.sh
+./run_train_surrogate_rtu.sh
 
 ENDTIME=$(date +%s)
 echo "It takes $(($ENDTIME - $STARTTIME)) seconds to run AI model"
