@@ -56,8 +56,8 @@ EPOCHS = args["epochs"]
 NUM_SAMPLES = args["trials"]
 
 DATA_BASE_PATH = args["db_path"]
-DATA_TRAIN_SUBDIR = "surrogate_train"
-DATA_TEST_SUBDIR = "surrogate_test"
+DATA_TRAIN_SUBDIR = "surr_train"
+DATA_TEST_SUBDIR = "surr_test"
 
 if not torch.cuda.is_available():
     print("[WARN] CUDA is not available")
@@ -86,7 +86,7 @@ class SurrogateModel(pl.LightningModule):
 
         self.loss_function = nn.MSELoss()
 
-        self.train_accuracy = MeanAbsoluteError()
+        self.train_accuracy = MeanAbsoluteError() # TODO: Restore the function created by Albert
         self.val_accuracy = MeanAbsoluteError()
         self.test_accuracy = MeanAbsoluteError()
 

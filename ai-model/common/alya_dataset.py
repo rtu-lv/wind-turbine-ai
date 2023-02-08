@@ -128,7 +128,7 @@ def parse_run_variables(file):
 class AlyaDataset(Dataset):
     """ Read the files in folder and get the data in torch dataset format"""
 
-    POR_NORM = 1e6
+    POR_NORM = 50_000
 
     # -------
     # TODO : Modification pending, not needed right now for cnn_a training
