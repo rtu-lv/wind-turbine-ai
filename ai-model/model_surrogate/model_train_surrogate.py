@@ -262,7 +262,9 @@ def tune_and_test():
     trainer.test(model=best_trained_model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
 
     # serialize the model to disk
-    # torch.save(model.model, args["model"])
+    torch.save(best_trained_model.model, args["model"])
+
+    # Export the model in the ONNX format
     # torch.onnx.export(best_model.model, best_model.train_dataset.dataset.get_input(), "cnn_surrogate.onnx",
     #                  export_params=True,
     #                  input_names=['upstream', 'downstream'], output_names=['porosity'])
