@@ -16,7 +16,7 @@ from torch import nn
 from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
-from torchmetrics import MeanAbsoluteError
+from torchmetrics import R2Score
 
 from model_cnn_surrogate import SurrogateCNN
 
@@ -68,6 +68,7 @@ NUM_GPUS = torch.cuda.device_count() if (args["num_gpus"] is None or not torch.c
 print("Number of CPUs to be used: {}".format(NUM_CPUS))
 print("Number of GPUs to be used: {}".format(NUM_GPUS))
 
+
 class SurrogateModel(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
@@ -86,9 +87,9 @@ class SurrogateModel(pl.LightningModule):
 
         self.loss_function = nn.MSELoss()
 
-        self.train_accuracy = MeanAbsoluteError() # TODO: Restore the function created by Albert
-        self.val_accuracy = MeanAbsoluteError()
-        self.test_accuracy = MeanAbsoluteError()
+        self.train_accuracy = R2Score(num_outputs=4)
+        self.val_accuracy = R2Score(num_outputs=4)
+        self.test_accuracy = R2Score(num_outputs=4)
 
     def __load_data(self):
         # load the Alya surrogate dataset
