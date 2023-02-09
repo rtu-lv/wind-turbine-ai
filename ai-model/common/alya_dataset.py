@@ -11,10 +11,8 @@ from sklearn.preprocessing import MinMaxScaler
 
 # %% Read dataset from Alya "results" folder and store it in Torch Tensor format
 
-# get vector fields (3 channels: vx, vy, p) from an alya results file
-def get_fields(file):
-    with open(file, 'r') as f:  # Open file with field data
-        lines = f.readlines()  # read all the lines
+# get vector fields (3 channels: vx, vy, p) from lines from previously fetched file
+def get_fields(lines):
 
     dataUS = []  # Init Upstream data list
     dataDS = []  # Init Downstream data list
@@ -122,7 +120,7 @@ def parse_run_variables(file):
 
         if (count == 3): break  # Only 3 lines have to be read
 
-    return v_dict
+    return v_dict, lines
 
 
 class AlyaDataset(Dataset):
@@ -182,14 +180,14 @@ class AlyaDataset(Dataset):
         # Process all the files inside folder
         for f in file_list:
             # read run variables 'vIn', 'ang' and '[Por]' into a dictionary
-            run_vars = parse_run_variables(join(folder, f))
+            run_vars, lines = parse_run_variables(join(folder, f))
 
             # store run variables (for debugging purposes)
             self.vIn.append(run_vars["vIn"])
             self.ang.append(run_vars["ang"])
 
             # get Upwind and Downwind velocity and pressure fields
-            x1, x2, x3, x4 = get_fields(join(folder, f))
+            x1, x2, x3, x4 = get_fields(lines)
             # store in temporal lists
             tmp_x1.append(x1)
             tmp_x2.append(x2)
