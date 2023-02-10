@@ -208,13 +208,18 @@ def train_and_test():
     if not exists(data_cache_file):
         load_and_cache_data(data_cache_file)
 
+    config = {
+        "lr": 1e-4,
+        "batch_size": 64
+    }
+
     print("--- Training surrogate model ---")
     model = SurrogateModel(config)
 
     trainer = train_surrogate_model(model)
 
     print("--- Training surrogate model ---")
-    trainer.test(model=model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
+    trainer.test(ckpt_path='best')
 
     # serialize the model to disk
     torch.save(model, args["model"])
