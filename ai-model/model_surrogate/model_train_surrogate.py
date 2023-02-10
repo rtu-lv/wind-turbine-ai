@@ -9,16 +9,13 @@ from os.path import exists, join
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import LearningRateMonitor
-from ray import tune
-from ray.tune.integration.pytorch_lightning import TuneReportCallback, TuneReportCheckpointCallback
-from ray.tune.schedulers import ASHAScheduler
 from torch import nn
 from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torchmetrics import R2Score
 
-from convolutional_network import ConvolutionalNetwork
+#from convolutional_network import ConvolutionalNetwork
 from spatial_transformer import SpatialTransformer
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -80,8 +77,8 @@ class SurrogateModel(pl.LightningModule):
         if args["continue"] is not None:
             self.model = torch.load(args["model"])
         else:
-            self.model = ConvolutionalNetwork(num_channels=2)
-            #self.model = SpatialTransformer()
+            #self.model = ConvolutionalNetwork(num_channels=2)
+            self.model = SpatialTransformer()
 
         self.num_workers = 0#multiprocessing.cpu_count()
 
@@ -186,57 +183,15 @@ class SurrogateModel(pl.LightningModule):
         return [opt], [sch1, sch2]
 
 
-# %%
-DEF_BATCH_SIZE = 50
+def train_surrogate_model(model, num_epochs, num_gpus):
+    callbacks = [LearningRateMonitor(logging_interval='step')]
 
-
-def train_surrogate_model(config, num_epochs, num_gpus):
-    model = SurrogateModel(config)
-
-    metrics = {"loss": "ptl/val_loss", "accuracy": "ptl/val_accuracy"}
-    callbacks = [LearningRateMonitor(logging_interval='step'), TuneReportCallback(metrics, on="validation_end"),
-                 TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
-                ]
-
-    trainer = pl.Trainer(accelerator="gpu" if NUM_GPUS > 0 else "cpu",
-                         devices=num_gpus, max_epochs=num_epochs,
+    trainer = pl.Trainer(accelerator="gpu" if NUM_GPUS > 0 else "cpu", devices=num_gpus, max_epochs=num_epochs,
                          callbacks=callbacks, enable_progress_bar=True)
     trainer.fit(model=model)
 
+    return trainer
 
-def tune_surrogate_model(num_epochs, num_samples):
-    config = {
-        "lr": tune.loguniform(1e-4, 1e-1),
-        "batch_size": tune.choice([32, 64, 128, 256])
-    }
-    trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=NUM_GPUS)
-
-    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=1, reduction_factor=2)
-
-    resources_per_trial = {
-        "cpu": NUM_CPUS,
-        "gpu": NUM_GPUS
-    }
-
-    result = tune.run(
-        trainable,
-        resources_per_trial=resources_per_trial,
-        scheduler=scheduler,
-        metric="loss",
-        mode="min",
-        config=config,
-        num_samples=num_samples,
-        name="tuning_logs",
-        local_dir=os.getcwd(),
-        resume='AUTO+ERRORED'
-    )
-
-    best_trial = result.get_best_trial("loss", "min", "last")
-    print("Best trial config: {}".format(best_trial.config))
-    print("Best trial final validation loss: {}".format(best_trial.last_result["loss"]))
-    print("Best trial final validation accuracy: {}".format(best_trial.last_result["accuracy"]))
-
-    return best_trial
 
 def load_and_cache_data(data_cache_file):
     print("[INFO] loading and caching Alya data files...")
@@ -248,24 +203,21 @@ def load_and_cache_data(data_cache_file):
         pickle.dump(test_dataset, f, pickle.HIGHEST_PROTOCOL)
 
 
-def tune_and_test():
+def train_and_test():
     data_cache_file = join(current_dir, args["data"])
     if not exists(data_cache_file):
         load_and_cache_data(data_cache_file)
 
-    best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES)
-    best_trained_model = SurrogateModel(best_trial.config)
-    best_checkpoint_dir = best_trial.checkpoint.dir_or_data
+    print("--- Training surrogate model ---")
+    model = SurrogateModel(config)
 
-    # test_acc = test_accuracy(best_trained_model, device)
-    # print("Best trial test set accuracy: {}".format(test_acc))
+    trainer = train_surrogate_model(model)
 
-    print("--- Testing surrogate model ---")
-    trainer = pl.Trainer(accelerator="gpu" if NUM_GPUS > 0 else "cpu", devices=NUM_GPUS)
-    trainer.test(model=best_trained_model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
+    print("--- Training surrogate model ---")
+    trainer.test(model=model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
 
     # serialize the model to disk
-    torch.save(best_trained_model.model, args["model"])
+    torch.save(model, args["model"])
 
     # Export the model in the ONNX format
     # torch.onnx.export(best_model.model, best_model.train_dataset.dataset.get_input(), "cnn_surrogate.onnx",
@@ -274,6 +226,6 @@ def tune_and_test():
 
 
 if __name__ == "__main__":
-    tune_and_test()
+    train_and_test()
 
 
