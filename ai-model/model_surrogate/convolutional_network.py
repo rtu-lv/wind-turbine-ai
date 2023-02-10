@@ -15,11 +15,11 @@ def _init_weights(module):
             module.bias.data.zero_()
 
 
-class SurrogateCNN(Module):
+class ConvolutionalNetwork(Module):
 
     def __init__(self, num_channels):
         # call the parent constructor
-        super(SurrogateCNN, self).__init__()
+        super(ConvolutionalNetwork, self).__init__()
 
         self.activConv = LeakyReLU()
         self.max_pool = MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
