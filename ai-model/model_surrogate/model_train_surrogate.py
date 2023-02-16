@@ -186,8 +186,8 @@ class SurrogateModel(pl.LightningModule):
 def train_surrogate_model(model, num_epochs, num_gpus):
     callbacks = [LearningRateMonitor(logging_interval='step')]
 
-    trainer = pl.Trainer(accelerator="gpu" if NUM_GPUS > 0 else "cpu", devices=num_gpus, max_epochs=num_epochs,
-                         callbacks=callbacks, enable_progress_bar=True)
+    trainer = pl.Trainer(accelerator="gpu" if num_gpus > 0 else "cpu", devices=num_gpus if num_gpus > 0 else 1,
+                         max_epochs=num_epochs, callbacks=callbacks, enable_progress_bar=True)
     trainer.fit(model=model)
 
     return trainer
@@ -216,9 +216,9 @@ def train_and_test():
     print("--- Training surrogate model ---")
     model = SurrogateModel(config)
 
-    trainer = train_surrogate_model(model)
+    trainer = train_surrogate_model(model, EPOCHS, NUM_GPUS)
 
-    print("--- Training surrogate model ---")
+    print("--- Testing surrogate model ---")
     trainer.test(ckpt_path='best')
 
     # serialize the model to disk
