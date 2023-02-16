@@ -62,7 +62,7 @@ class SpatialTransformer(ConvolutionalNetwork):
 
     def forward(self, xa, xb):
         # transform the input
-        x_a = self.stn_a(xa)
-        x_b = self.stn_b(xb)
+        xa = self.stn_a(xa)
+        xb = self.stn_b(xb)
 
         return super(SpatialTransformer, self).forward(xa, xb)
