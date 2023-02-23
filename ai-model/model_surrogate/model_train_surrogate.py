@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torchmetrics import R2Score
 
-#from convolutional_network import ConvolutionalNetwork
+from convolutional_network import ConvolutionalNetwork
 from spatial_transformer import SpatialTransformer
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -77,8 +77,8 @@ class SurrogateModel(pl.LightningModule):
         if args["continue"] is not None:
             self.model = torch.load(args["model"])
         else:
-            #self.model = ConvolutionalNetwork(num_channels=2)
-            self.model = SpatialTransformer()
+            self.model = ConvolutionalNetwork(num_channels=2)
+            #self.model = SpatialTransformer()
 
         self.num_workers = 0#multiprocessing.cpu_count()
 
