@@ -80,7 +80,7 @@ class SurrogateModel(pl.LightningModule):
         if args["continue"] is not None:
             self.model = torch.load(args["model"])
         else:
-            self.model = ConvolutionalNetwork(num_channels=2)
+            self.model = ConvolutionalNetwork(config, num_channels=2)
             #self.model = SpatialTransformer()
 
         self.num_workers = 0#multiprocessing.cpu_count()
@@ -207,7 +207,9 @@ def train_surrogate_model(config, num_epochs, num_gpus):
 def tune_surrogate_model(num_epochs, num_samples):
     config = {
         "lr": tune.loguniform(1e-4, 1e-1),
-        "batch_size": tune.choice([32, 64, 128, 256])
+        "batch_size": tune.choice([32, 64, 128, 256]),
+        "fca_out_features" : tune.choice([100, 200, 300]),
+        "fcb_out_features": tune.choice([100, 200, 300])
     }
     trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=NUM_GPUS)
 
