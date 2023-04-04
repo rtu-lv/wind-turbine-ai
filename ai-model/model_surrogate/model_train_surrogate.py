@@ -9,6 +9,7 @@ from os.path import exists, join
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.loggers import TensorBoardLogger
 from ray import tune
 from ray.tune.integration.pytorch_lightning import TuneReportCallback, TuneReportCheckpointCallback
 from ray.tune.schedulers import ASHAScheduler
@@ -20,6 +21,8 @@ from torchmetrics import R2Score
 
 from convolutional_network import ConvolutionalNetwork
 from spatial_transformer import SpatialTransformer
+
+TUNING_LOGS_DIR = "tuning_logs"
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -137,10 +140,10 @@ class SurrogateModel(pl.LightningModule):
         pred = self.model(x1, x2)
 
         loss = self.loss_function(pred, y)
-        self.log("train_loss", loss, on_step=False, on_epoch=True)
+        self.log_dict({"summary/train_loss": loss, "step": self.current_epoch + 1})
 
         self.train_accuracy(pred, y)
-        self.log("train_accuracy", self.train_accuracy, on_step=False, on_epoch=True)
+        self.log_dict({"summary/train_accuracy": self.train_accuracy, "step": self.current_epoch + 1})
 
         return loss
 
@@ -151,18 +154,12 @@ class SurrogateModel(pl.LightningModule):
         pred = self.model(x1, x2)
 
         loss = self.loss_function(pred, y)
-        self.log("validation_loss", loss, on_step=False, on_epoch=True)
+        self.log_dict({"summary/validation_loss": loss, "step": self.current_epoch + 1})
 
         acc = self.val_accuracy(pred, y)
-        self.log("validation_accuracy", acc, on_step=False, on_epoch=True)
+        self.log_dict({"summary/validation_accuracy": acc, "step": self.current_epoch + 1})
 
         return {"val_loss": loss, "val_accuracy": acc}
-
-    def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
-        avg_acc = torch.stack([x["val_accuracy"] for x in outputs]).mean()
-        self.log("ptl/val_loss", avg_loss)
-        self.log("ptl/val_accuracy", avg_acc)
 
     def test_step(self, batch, batch_idx):
         x1, x2, x3, x4, y = batch
@@ -170,10 +167,10 @@ class SurrogateModel(pl.LightningModule):
         pred = self.model(x1, x2)
 
         loss = self.loss_function(pred, y)
-        self.log("test_loss", loss)
+        self.log("summary/test_loss", loss)
 
         self.test_accuracy(pred, y)
-        self.log("test_accuracy", self.test_accuracy)
+        self.log("summary/test_accuracy", self.test_accuracy)
 
         return loss
 
@@ -193,7 +190,7 @@ DEF_BATCH_SIZE = 50
 def train_surrogate_model(config, num_epochs, num_gpus):
     model = SurrogateModel(config)
 
-    metrics = {"loss": "ptl/val_loss", "accuracy": "ptl/val_accuracy"}
+    metrics = {"loss": "summary/validation_loss", "accuracy": "summary/validation_accuracy"}
     callbacks = [LearningRateMonitor(logging_interval='step'), TuneReportCallback(metrics, on="validation_end"),
                  TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
                 ]
@@ -207,13 +204,13 @@ def train_surrogate_model(config, num_epochs, num_gpus):
 def tune_surrogate_model(num_epochs, num_samples):
     config = {
         "lr": tune.loguniform(1e-4, 1e-1),
-        "batch_size": tune.choice([32, 64, 128, 256]),
+        "batch_size": tune.choice([64, 128, 256]),
         "fca_out_features" : tune.choice([100, 200, 300]),
         "fcb_out_features": tune.choice([100, 200, 300])
     }
     trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=NUM_GPUS)
 
-    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=1, reduction_factor=2)
+    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=num_epochs / 10, reduction_factor=2)
 
     resources_per_trial = {
         "cpu": NUM_CPUS,
@@ -228,7 +225,7 @@ def tune_surrogate_model(num_epochs, num_samples):
         mode="min",
         config=config,
         num_samples=num_samples,
-        name="tuning_logs",
+        name=TUNING_LOGS_DIR,
         local_dir=os.getcwd(),
         resume='AUTO+ERRORED'
     )
@@ -263,7 +260,8 @@ def tune_and_test():
     # print("Best trial test set accuracy: {}".format(test_acc))
 
     print("--- Testing surrogate model ---")
-    trainer = pl.Trainer(accelerator="gpu" if NUM_GPUS > 0 else "cpu", devices=NUM_GPUS)
+    logger = TensorBoardLogger(TUNING_LOGS_DIR)
+    trainer = pl.Trainer(accelerator="gpu" if NUM_GPUS > 0 else "cpu", devices=NUM_GPUS, logger=logger)
     trainer.test(model=best_trained_model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
 
     # serialize the model to disk
