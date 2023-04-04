@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=TensP_PyLight
+#SBATCH -D .
+#SBATCH --output=out_%j.out
+#SBATCH --error=out_%j.err
+#SBATCH --ntasks=1
+#SBATCH --gres=gpu:1
+#SBATCH --cpus-per-task=16
+#SBATCH --qos=debug
+#SBATCH --time=00:05:00
+
+module load gcc python/3.9.1 rocm/5.1.1
+source /apps/RAY/ray/bin/activate
+
+export PYTHONPATH="$PYTHONPATH:/home/bsc21/bsc21566/scratch/tmp/tensorporosity/ai-model"
+
+srun python3 -u plot_Pred_Surr.py --model cnnHR --data hrDS.bin

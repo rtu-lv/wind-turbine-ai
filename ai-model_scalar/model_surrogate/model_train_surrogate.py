@@ -19,12 +19,13 @@ from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torchmetrics import R2Score
 
+#from convolutional_network import ConvolutionalNetwork
 from model_surrogate.convolutional_network import ConvolutionalNetwork
 #from spatial_transformer import SpatialTransformer
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
-# parent_dir = os.path.dirname(current_dir)
-# sys.path.append(parent_dir)
+#parent_dir = os.path.dirname(current_dir)
+#sys.path.append(parent_dir)
 from common.alya_dataset import AlyaDataset
 
 
@@ -91,9 +92,9 @@ class SurrogateModel(pl.LightningModule):
 
         self.loss_function = nn.MSELoss()
 
-        self.train_accuracy = R2Score(num_outputs=4)
-        self.val_accuracy = R2Score(num_outputs=4)
-        self.test_accuracy = R2Score(num_outputs=4)
+        self.train_accuracy = R2Score(num_outputs=1)
+        self.val_accuracy = R2Score(num_outputs=1)
+        self.test_accuracy = R2Score(num_outputs=1)
 
     def __load_data(self):
         # load the Alya surrogate dataset
@@ -137,8 +138,11 @@ class SurrogateModel(pl.LightningModule):
 
         # perform a forward pass and calculate the training loss
         pred = self.model(x1, x2)
-
+        
+        # pred_n = torch.div(pred, y)
+        # y_n = torch.div(y, y)
         loss = self.loss_function(pred, y)
+        # loss2 = self.loss_function(pred_n, y_n)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
 
         self.train_accuracy(pred, y)
@@ -152,7 +156,10 @@ class SurrogateModel(pl.LightningModule):
         # make the predictions and calculate the validation loss
         pred = self.model(x1, x2)
 
+        # pred_n = torch.div(pred, y)
+        # y_n = torch.div(y, y)
         loss = self.loss_function(pred, y)
+        # loss2 = self.loss_function(pred_n, y_n)
         self.log("validation_loss", loss, on_step=False, on_epoch=True)
 
         acc = self.val_accuracy(pred, y)
@@ -182,8 +189,8 @@ class SurrogateModel(pl.LightningModule):
     def configure_optimizers(self):
         opt = AdamW(self.model.parameters(), lr=self.lr)
 
-        sch1 = lr_scheduler.CosineAnnealingLR(opt, 500)
-        sch2 = lr_scheduler.LambdaLR(opt, lr_lambda=(lambda ep: (ep * (1e-2 - 1) + EPOCHS) / EPOCHS))
+        sch1 = lr_scheduler.CosineAnnealingLR(opt, 100)
+        sch2 = lr_scheduler.LambdaLR(opt, lr_lambda=(lambda ep: (ep * (1e-3 - 1) + EPOCHS) / EPOCHS))
 
         return [opt], [sch1, sch2]
 
@@ -218,17 +225,17 @@ def train_surrogate_model(config, num_epochs, num_gpus):
 
 def tune_surrogate_model(num_epochs, num_samples):
     config = {
-        "lr": tune.loguniform(1e-4, 1e-1),
-        "batch_size": tune.choice([32, 64, 128, 256])
+        "lr": tune.loguniform(1e-5, 1e-2),
+        "batch_size": tune.choice([64, 128, 256])
     }
     trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=NUM_GPUS)
 
-    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=200, reduction_factor=2, brackets=4)
+    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=200, reduction_factor=2)
 
     resources_per_trial = {
         # "cpu": 1,
-        "cpu": NUM_CPUS,
-        "gpu": NUM_GPUS
+        "cpu": 1, #NUM_CPUS
+        "gpu": 0.5 #NUM_GPUS
     }
 
     result = tune.run(

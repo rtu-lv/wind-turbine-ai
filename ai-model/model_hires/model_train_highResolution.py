@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torchmetrics import R2Score
 
-from model_surrogate.convolutional_network import ConvolutionalNetwork
+from model_hires.CNN_highResolution import ConvolutionalNetwork_HR
 #from spatial_transformer import SpatialTransformer
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -72,7 +72,7 @@ print("Number of CPUs to be used: {}".format(NUM_CPUS))
 print("Number of GPUs to be used: {}".format(NUM_GPUS))
 
 
-class SurrogateModel(pl.LightningModule):
+class HighResolutionModel(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
         self.batch_size = config["batch_size"]
@@ -82,7 +82,7 @@ class SurrogateModel(pl.LightningModule):
         if args["continue"] is not None:
             self.model = torch.load(args["model"])
         else:
-            self.model = ConvolutionalNetwork(num_channels=2)
+            self.model = ConvolutionalNetwork_HR(num_channels=2)
             #self.model = SpatialTransformer()
 
         self.num_workers = 0#multiprocessing.cpu_count()
@@ -136,7 +136,7 @@ class SurrogateModel(pl.LightningModule):
         x1, x2, x3, x4, y = batch
 
         # perform a forward pass and calculate the training loss
-        pred = self.model(x1, x2)
+        pred = self.model(x1)
 
         loss = self.loss_function(pred, y)
         self.log("train_loss", loss, on_step=False, on_epoch=True)
@@ -150,7 +150,7 @@ class SurrogateModel(pl.LightningModule):
         x1, x2, x3, x4, y = batch
 
         # make the predictions and calculate the validation loss
-        pred = self.model(x1, x2)
+        pred = self.model(x1)
 
         loss = self.loss_function(pred, y)
         self.log("validation_loss", loss, on_step=False, on_epoch=True)
@@ -169,7 +169,7 @@ class SurrogateModel(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         x1, x2, x3, x4, y = batch
 
-        pred = self.model(x1, x2)
+        pred = self.model(x1)
 
         loss = self.loss_function(pred, y)
         self.log("test_loss", loss)
@@ -182,8 +182,8 @@ class SurrogateModel(pl.LightningModule):
     def configure_optimizers(self):
         opt = AdamW(self.model.parameters(), lr=self.lr)
 
-        sch1 = lr_scheduler.CosineAnnealingLR(opt, 500)
-        sch2 = lr_scheduler.LambdaLR(opt, lr_lambda=(lambda ep: (ep * (1e-2 - 1) + EPOCHS) / EPOCHS))
+        sch1 = lr_scheduler.CosineAnnealingLR(opt, 100)
+        sch2 = lr_scheduler.LambdaLR(opt, lr_lambda=(lambda ep: (ep * (1e-3 - 1) + EPOCHS) / EPOCHS))
 
         return [opt], [sch1, sch2]
 
@@ -193,7 +193,7 @@ DEF_BATCH_SIZE = 50
 
 
 def train_surrogate_model(config, num_epochs, num_gpus):
-    model = SurrogateModel(config)
+    model = HighResolutionModel(config)
 
     metrics = {"loss": "ptl/val_loss", "accuracy": "ptl/val_accuracy"}
     callbacks = [LearningRateMonitor(logging_interval='step'), TuneReportCallback(metrics, on="validation_end"),
@@ -219,11 +219,11 @@ def train_surrogate_model(config, num_epochs, num_gpus):
 def tune_surrogate_model(num_epochs, num_samples):
     config = {
         "lr": tune.loguniform(1e-4, 1e-1),
-        "batch_size": tune.choice([32, 64, 128, 256])
+        "batch_size": tune.choice([64, 128, 256, 512])
     }
     trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=NUM_GPUS)
 
-    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=200, reduction_factor=2, brackets=4)
+    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=100, reduction_factor=2, brackets=4)
 
     resources_per_trial = {
         # "cpu": 1,
@@ -254,8 +254,8 @@ def tune_surrogate_model(num_epochs, num_samples):
 def load_and_cache_data(data_cache_file):
     print("[INFO] loading and caching Alya data files...")
 
-    train_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, DATA_TRAIN_SUBDIR))
-    test_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, DATA_TEST_SUBDIR))
+    train_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, DATA_TRAIN_SUBDIR), True, "cnnSurr-te")
+    test_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, DATA_TEST_SUBDIR), True, "cnnSurr-te")
     with open(data_cache_file, 'wb') as f:
         pickle.dump(train_dataset, f, pickle.HIGHEST_PROTOCOL)
         pickle.dump(test_dataset, f, pickle.HIGHEST_PROTOCOL)
@@ -267,13 +267,13 @@ def tune_and_test():
         load_and_cache_data(data_cache_file)
 
     best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES)
-    best_trained_model = SurrogateModel(best_trial.config)
+    best_trained_model = HighResolutionModel(best_trial.config)
     best_checkpoint_dir = best_trial.checkpoint.dir_or_data
 
     # test_acc = test_accuracy(best_trained_model, device)
     # print("Best trial test set accuracy: {}".format(test_acc))
 
-    print("--- Testing surrogate model ---")
+    print("--- Testing High Resolution model ---")
 
     # if NUM_GPUS > 0:
     #     accel = "gpu"
