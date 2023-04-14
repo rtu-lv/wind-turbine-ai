@@ -1,7 +1,7 @@
 # import the necessary packages
 from torch import cat
 from torch import flatten
-from torch.nn import Module, Conv2d, Linear, MaxPool2d, LeakyReLU, AdaptiveMaxPool2d, BatchNorm1d
+from torch.nn import Module, Conv2d, Linear, MaxPool2d, LeakyReLU, AdaptiveMaxPool2d, BatchNorm1d, ReLU
 
 
 def _init_weights(module):
@@ -17,7 +17,7 @@ def _init_weights(module):
 
 class ConvolutionalNetwork(Module):
 
-    def __init__(self, config, num_channels):
+    def __init__(self, num_channels):
         # call the parent constructor
         super(ConvolutionalNetwork, self).__init__()
 
@@ -25,6 +25,7 @@ class ConvolutionalNetwork(Module):
         self.max_pool = MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         self.rect_pool = MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         self.activFC = LeakyReLU()
+        self.activOUT = ReLU()
 
         # initialize first set of CONV => RELU => POOL layers
         self.conv1a = Conv2d(in_channels=num_channels, out_channels=20,
@@ -38,20 +39,17 @@ class ConvolutionalNetwork(Module):
         self.conv2b = Conv2d(in_channels=20, out_channels=50,
                              kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
 
-        fca_out_features = config["fca_out_features"]
-        fcb_out_features = config["fcb_out_features"]
-
         # initialize separate set of FC => RELU layers
-        self.fca = Linear(in_features=3000, out_features=fca_out_features)
-        self.fcb = Linear(in_features=3600, out_features=fcb_out_features)
+        self.fca = Linear(in_features=3000, out_features=200)
+        self.fcb = Linear(in_features=3600, out_features=300)
 
         # initialize first common linear layer FC => RELU
-        self.fc1 = Linear(in_features=fca_out_features+fcb_out_features, out_features=100)
+        self.fc1 = Linear(in_features=500, out_features=100)
 
         self.bn = BatchNorm1d(num_features=100)
 
         # get output layer as a single value
-        self.fcOut = Linear(in_features=100, out_features=4)
+        self.fcOut = Linear(in_features=100, out_features=1)
 
         # self.apply(self._init_weights)
 
@@ -104,7 +102,8 @@ class ConvolutionalNetwork(Module):
         # pass the output to final layer to get our output predictions
         # IN:  x == 100
         # OUT: x == 1
-        output = self.fcOut(x)
+        x = self.fcOut(x)
+        output = x #self.activOUT(x)
 
         # return the output regression
         return output
