@@ -49,8 +49,6 @@ ap.add_argument("-cpus", "--num_cpus", type=int, required=False,
                 help="Number of CPUs to use")
 ap.add_argument("-gpus", "--num_gpus", type=int, required=False,
                 help="Number of GPUs to use")
-ap.add_argument("-pycharm", "--pycharm", type=bool, required=False,
-                help="Use for debugging")
 args = vars(ap.parse_args())
 
 # define the train and val splits
