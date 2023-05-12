@@ -32,18 +32,21 @@ class ConvolutionalNetwork(Module):
         self.conv1b = Conv2d(in_channels=num_channels, out_channels=20,
                              kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
 
+        conv2a_out_channels = config["conv2a_out_channels"]
+        conv2b_out_channels = config["conv2b_out_channels"]
+
         # initialize second set of CONV (=> RELU => POOL layers)
-        self.conv2a = Conv2d(in_channels=20, out_channels=50,
+        self.conv2a = Conv2d(in_channels=20, out_channels=conv2a_out_channels,
                              kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
-        self.conv2b = Conv2d(in_channels=20, out_channels=50,
+        self.conv2b = Conv2d(in_channels=20, out_channels=conv2b_out_channels,
                              kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
 
         fca_out_features = config["fca_out_features"]
         fcb_out_features = config["fcb_out_features"]
 
         # initialize separate set of FC => RELU layers
-        self.fca = Linear(in_features=3000, out_features=fca_out_features)
-        self.fcb = Linear(in_features=3600, out_features=fcb_out_features)
+        self.fca = Linear(in_features=30*conv2a_out_channels*num_channels, out_features=fca_out_features)
+        self.fcb = Linear(in_features=36*conv2b_out_channels*num_channels, out_features=fcb_out_features)
 
         fc1_out_features = config["fc1_out_features"]
 
