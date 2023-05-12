@@ -20,7 +20,6 @@ from torch.utils.data import random_split
 from torchmetrics import R2Score
 
 from convolutional_network import ConvolutionalNetwork
-from spatial_transformer import SpatialTransformer
 
 TUNING_LOGS_DIR = "tuning_logs"
 
@@ -206,11 +205,12 @@ def tune_surrogate_model(num_epochs, num_samples):
         "lr": tune.loguniform(1e-4, 1e-1),
         "batch_size": tune.choice([64, 128, 256]),
         "fca_out_features" : tune.choice([100, 200, 300]),
-        "fcb_out_features": tune.choice([100, 200, 300])
+        "fcb_out_features": tune.choice([200, 300, 400]),
+        "fc1_out_features": tune.choice([100, 200, 300])
     }
     trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=NUM_GPUS)
 
-    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=num_epochs / 10, reduction_factor=2)
+    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=num_epochs // 10, reduction_factor=2)
 
     resources_per_trial = {
         "cpu": NUM_CPUS,
@@ -268,9 +268,9 @@ def tune_and_test():
     torch.save(best_trained_model.model, args["model"])
 
     # Export the model in the ONNX format
-    # torch.onnx.export(best_model.model, best_model.train_dataset.dataset.get_input(), "cnn_surrogate.onnx",
-    #                  export_params=True,
-    #                  input_names=['upstream', 'downstream'], output_names=['porosity'])
+    torch.onnx.export(best_trained_model.model, best_trained_model.train_dataset.dataset.get_input(), "cnn_surrogate.onnx",
+                      export_params=True,
+                      input_names=['upstream', 'downstream'], output_names=['porosity'])
 
 
 if __name__ == "__main__":

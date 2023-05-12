@@ -45,13 +45,15 @@ class ConvolutionalNetwork(Module):
         self.fca = Linear(in_features=3000, out_features=fca_out_features)
         self.fcb = Linear(in_features=3600, out_features=fcb_out_features)
 
-        # initialize first common linear layer FC => RELU
-        self.fc1 = Linear(in_features=fca_out_features+fcb_out_features, out_features=100)
+        fc1_out_features = config["fc1_out_features"]
 
-        self.bn = BatchNorm1d(num_features=100)
+        # initialize first common linear layer FC => RELU
+        self.fc1 = Linear(in_features=fca_out_features+fcb_out_features, out_features=fc1_out_features)
+
+        self.bn = BatchNorm1d(num_features=fc1_out_features)
 
         # get output layer as a single value
-        self.fcOut = Linear(in_features=100, out_features=4)
+        self.fcOut = Linear(in_features=fc1_out_features, out_features=4)
 
         # self.apply(self._init_weights)
 
