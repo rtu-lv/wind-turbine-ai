@@ -49,6 +49,8 @@ ap.add_argument("-cpus", "--num_cpus", type=int, required=False,
                 help="Number of CPUs to use")
 ap.add_argument("-gpus", "--num_gpus", type=int, required=False,
                 help="Number of GPUs to use")
+ap.add_argument("-pycharm", "--pycharm", type=bool, required=False,
+                help="Use for debugging")
 args = vars(ap.parse_args())
 
 # define the train and val splits
@@ -204,8 +206,8 @@ def tune_surrogate_model(num_epochs, num_samples):
     config = {
         "lr": tune.loguniform(1e-4, 1e-1),
         "batch_size": tune.choice([64, 128, 256]),
-        "conv2a_out_channels" : tune.choice([25, 50, 75]),
-        "conv2b_out_channels": tune.choice([25, 50, 75]),
+        "conv2a_out_channels" : tune.choice([50, 75, 100]),
+        "conv2b_out_channels": tune.choice([50, 75, 100]),
         "fca_out_features" : tune.choice([100, 200, 300]),
         "fcb_out_features": tune.choice([200, 300, 400]),
         "fc1_out_features": tune.choice([100, 200, 300])
@@ -277,5 +279,6 @@ def tune_and_test():
 
 if __name__ == "__main__":
     tune_and_test()
+
 
 

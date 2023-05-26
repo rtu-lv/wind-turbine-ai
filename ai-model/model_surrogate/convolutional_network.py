@@ -26,20 +26,30 @@ class ConvolutionalNetwork(Module):
         self.rect_pool = MaxPool2d(kernel_size=(2, 2), stride=(2, 2))
         self.activFC = LeakyReLU()
 
+        conv1a_kernel_size = 5
+        conv1b_kernel_size = 5
+
         # initialize first set of CONV => RELU => POOL layers
         self.conv1a = Conv2d(in_channels=num_channels, out_channels=20,
-                             kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
+                             kernel_size=(conv1a_kernel_size, conv1a_kernel_size), stride=(2, 2),
+                             padding=(conv1a_kernel_size - 1, conv1a_kernel_size - 1))
         self.conv1b = Conv2d(in_channels=num_channels, out_channels=20,
-                             kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
+                             kernel_size=(conv1b_kernel_size, conv1b_kernel_size), stride=(2, 2),
+                             padding=(conv1b_kernel_size - 1, conv1b_kernel_size - 1))
 
         conv2a_out_channels = config["conv2a_out_channels"]
         conv2b_out_channels = config["conv2b_out_channels"]
 
+        conv2a_kernel_size = 5
+        conv2b_kernel_size = 5
+
         # initialize second set of CONV (=> RELU => POOL layers)
         self.conv2a = Conv2d(in_channels=20, out_channels=conv2a_out_channels,
-                             kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
+                             kernel_size=(conv2a_kernel_size, conv2a_kernel_size), stride=(2, 2),
+                             padding=(conv2a_kernel_size - 1, conv2a_kernel_size - 1))
         self.conv2b = Conv2d(in_channels=20, out_channels=conv2b_out_channels,
-                             kernel_size=(5, 5), stride=(2, 2), padding=(4, 4))
+                             kernel_size=(conv2b_kernel_size, conv2b_kernel_size), stride=(2, 2),
+                             padding=(conv2b_kernel_size - 1, conv2b_kernel_size - 1))
 
         fca_out_features = config["fca_out_features"]
         fcb_out_features = config["fcb_out_features"]
