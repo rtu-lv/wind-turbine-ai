@@ -502,9 +502,9 @@ class UpScaler(nn.Module):
 
 
 class FourierTransformer2D(Module):
-    def __init__(self, **kwargs):
+    def __init__(self, config):
         super(FourierTransformer2D, self).__init__()
-        self.config = defaultdict(lambda: None, **kwargs)
+        self.config = config
         self._get_setting()
         self._initialize()
         self.__name__ = self.attention_type.capitalize() + 'Transformer2D'
