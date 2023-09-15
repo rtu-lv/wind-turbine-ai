@@ -150,6 +150,33 @@ class Identity(nn.Module):
         return self.id(x)
 
 
+class PositionalEncoding(nn.Module):
+    '''
+    https://pytorch.org/tutorials/beginner/transformer_tutorial.html
+    This is not necessary if spacial coords are given
+    input is (batch, seq_len, d_model)
+    '''
+
+    def __init__(self, d_model,
+                       dropout=0.1,
+                       max_len=2**13):
+        super(PositionalEncoding, self).__init__()
+        self.dropout = nn.Dropout(dropout)
+
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(
+            0, d_model, 2).float() * (-math.log(2**13) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        x = x + self.pe[:, :x.size(1), :]
+        return self.dropout(x)
+
+
 class Conv2dResBlock(nn.Module):
     '''Conv2d + a residual block
     https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
@@ -529,6 +556,55 @@ class DeConv2dBlock(nn.Module):
         x = self.activation(x)
         x = self.deconv1(x)
         x = self.activation(x)
+        return x
+
+
+class Interp2dUpsample(nn.Module):
+    '''
+    interpolate then Conv2dResBlock
+    old code uses lambda and cannot be pickled
+    temp hard-coded dimensions
+    '''
+
+    def __init__(self, in_dim: int,
+                 out_dim: int,
+                 kernel_size: int = 3,
+                 padding: int = 1,
+                 residual=False,
+                 conv_block=True,
+                 interp_mode='bilinear',
+                 interp_size=None,
+                 activation_type='silu',
+                 dropout=0.1,
+                 debug=False):
+        super(Interp2dUpsample, self).__init__()
+        activation_type = default(activation_type, 'silu')
+        self.activation = nn.SiLU() if activation_type == 'silu' else nn.ReLU()
+        self.dropout = nn.Dropout(dropout)
+        if conv_block:
+            self.conv = nn.Sequential(Conv2dResBlock(
+                in_dim, out_dim,
+                kernel_size=kernel_size,
+                padding=padding,
+                residual=residual,
+                dropout=dropout,
+                activation_type=activation_type),
+                self.dropout,
+                self.activation)
+        self.conv_block = conv_block
+        self.interp_size = interp_size
+        self.interp_mode = interp_mode
+        self.debug = debug
+
+    def forward(self, x):
+        x = F.interpolate(x, size=self.interp_size[0],
+                          mode=self.interp_mode,
+                          align_corners=True)
+        if self.conv_block:
+            x = self.conv(x)
+        x = F.interpolate(x, size=self.interp_size[1],
+                          mode=self.interp_mode,
+                          align_corners=True)
         return x
 
 

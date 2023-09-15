@@ -5,6 +5,7 @@ import os
 import pickle
 import sys
 from os.path import exists, join
+import numpy as np
 
 import pytorch_lightning as pl
 import torch
@@ -15,7 +16,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torchmetrics import R2Score
 
-from transformer_model import FourierTransformer2D
+from transformer_fourier2d import FourierTransformer2D
 
 TUNING_LOGS_DIR = "tuning_logs"
 
@@ -187,6 +188,24 @@ def train_surrogate_model(model, num_epochs, num_gpus):
     return trainer
 
 
+def get_scaler_sizes(n_f, n_c, scale_factor=True):
+    factor = np.sqrt(n_c / n_f)
+    factor = np.round(factor, 4)
+    last_digit = float(str(factor)[-1])
+    factor = np.round(factor, 3)
+    if last_digit < 5:
+        factor += 5e-3
+    factor = int(factor / 5e-3 + 5e-1) * 5e-3
+    down_factor = (factor, factor)
+    n_m = round(n_f * factor) - 1
+    up_size = ((n_m, n_m), (n_f, n_f))
+    down_size = ((n_m, n_m), (n_c, n_c))
+    if scale_factor:
+        return down_factor, up_size
+    else:
+        return down_size, up_size
+
+
 def load_and_cache_data(data_cache_file):
     print("[INFO] loading and caching Alya data files...")
 
@@ -198,14 +217,71 @@ def load_and_cache_data(data_cache_file):
 
 
 def train_and_test():
+    torch.set_float32_matmul_precision('medium')
+
     data_cache_file = join(current_dir, args["data"])
     if not exists(data_cache_file):
         load_and_cache_data(data_cache_file)
 
     config = {
         "lr": 1e-4,
-        "batch_size": 64
+        "batch_size": 64,
+
+        "normalizer": None,    #
+        "raw_laplacian": False, #
+        "return_latent": False,
+        "residual_type": "plus",
+        "norm_type": "layer", #
+        "norm_eps": 0.0000001,
+        "boundary_condition": "dirichlet",
+        "spacial_dim": 2,
+        "spacial_fc": True,
+        "regressor_activation": "silu",
+        "attn_activation": "relu", #
+        "downscaler_activation": "relu",
+        "upscaler_activation": "silu",
+        "encoder_dropout": 0.05,
+        "decoder_dropout": 0,
+        "ffn_dropout": 0.05,
+
+        "n_hidden": 128,
+        "dim_feedforward": 256,
+        "dropout": 0.0,
+        "decoder_type": "ifft2",
+        "feat_extract_type": "null",
+        "node_feats": 1,
+        "downsample_mode": "interp",
+        "downscaler_dropout": 0.05,
+        "debug": False,
+        "upsample_mode": "interp",
+        "upscaler_dropout": 0.05,
+        "attention_type": "galerkin",
+        "n_head": 4,
+        "layer_norm": False,
+        "attn_norm": True,
+        "batch_norm": False,
+        "pos_dim": 2,
+        "xavier_init": 0.01,
+        "diagonal_weight": 0.01,
+        "symmetric_init": False,
+        "norm_eps": 0.0000001,
+        "return_attn_weight": False,
+        "num_encoder_layers": 6,
+        "freq_dim": 32,
+        "n_targets": 1,
+        "num_regressor_layers": 2,
+        "fourier_modes": 12,
+        "last_activation": True
     }
+
+    subsample_nodes = 1
+    subsample_attn = 15
+    no_scale_factor = False
+    n_grid = int(((421 - 1) / subsample_nodes) + 1)
+    n_grid_c = int(((421 - 1) / subsample_attn) + 1)
+    downsample, upsample = get_scaler_sizes(n_grid, n_grid_c, scale_factor=not no_scale_factor)
+    config['downscaler_size'] = downsample
+    config['upscaler_size'] = upsample
 
     print("--- Training surrogate model ---")
     model = SurrogateModel(config)

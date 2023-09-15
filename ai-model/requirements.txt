@@ -1,5 +1,5 @@
 torch>=1.12.1
-pytorch-lightning>=2.0.2
+pytorch-lightning>=2.0.8
 matplotlib>=3.6.2
 ray>=2.4.0
 pandas>=1.5.1
