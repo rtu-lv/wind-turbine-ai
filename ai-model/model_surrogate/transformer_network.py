@@ -23,9 +23,12 @@ class TransformerNetwork(Module):
         # call the parent constructor
         super(TransformerNetwork, self).__init__()
 
-        all_attr = list(self.config.keys())
+        self.attention_types = ['fourier', 'integral', 'local', 'global',
+                                'cosine', 'galerkin', 'linear', 'softmax']
+
+        all_attr = list(config.keys())
         for key in all_attr:
-            setattr(self, key, self.config[key])
+            setattr(self, key, config[key])
 
         self._get_encoder()
 
