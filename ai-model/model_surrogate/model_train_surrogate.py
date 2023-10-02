@@ -15,8 +15,7 @@ from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torchmetrics import R2Score
-
-from transformer_fourier2d import FourierTransformer2D
+from transformer_network import TransformerNetwork
 
 TUNING_LOGS_DIR = "tuning_logs"
 
@@ -79,7 +78,7 @@ class SurrogateModel(pl.LightningModule):
         if args["continue"] is not None:
             self.model = torch.load(args["model"])
         else:
-            self.model = FourierTransformer2D(config)
+            self.model = TransformerNetwork(config)
 
         self.num_workers = 0#multiprocessing.cpu_count()
 
@@ -129,6 +128,10 @@ class SurrogateModel(pl.LightningModule):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, num_workers=self.num_workers)
 
     def training_step(self, batch, batch_idx):
+        # v_uw_field = self.x1_data[idx, :]
+        # v_dw_field = self.x2_data[idx, :]
+        # p_uw_field = self.x3_data[idx, :]
+        # p_dw_field = self.x4_data[idx, :]
         x1, x2, x3, x4, y = batch
 
         # perform a forward pass and calculate the training loss
@@ -227,51 +230,53 @@ def train_and_test():
         "lr": 1e-4,
         "batch_size": 64,
 
-        "normalizer": None,    #
-        "raw_laplacian": False, #
-        "return_latent": False,
-        "residual_type": "plus",
-        "norm_type": "layer", #
-        "norm_eps": 0.0000001,
-        "boundary_condition": "dirichlet",
-        "spacial_dim": 2,
-        "spacial_fc": True,
-        "regressor_activation": "silu",
-        "attn_activation": "relu", #
-        "downscaler_activation": "relu",
-        "upscaler_activation": "silu",
-        "encoder_dropout": 0.05,
-        "decoder_dropout": 0,
-        "ffn_dropout": 0.05,
+        "num_encoder_layers": 1,
 
-        "n_hidden": 128,
-        "dim_feedforward": 256,
-        "dropout": 0.0,
-        "decoder_type": "ifft2",
-        "feat_extract_type": "null",
-        "node_feats": 1,
-        "downsample_mode": "interp",
-        "downscaler_dropout": 0.05,
-        "debug": False,
-        "upsample_mode": "interp",
-        "upscaler_dropout": 0.05,
-        "attention_type": "galerkin",
-        "n_head": 4,
-        "layer_norm": False,
-        "attn_norm": True,
-        "batch_norm": False,
-        "pos_dim": 2,
-        "xavier_init": 0.01,
-        "diagonal_weight": 0.01,
-        "symmetric_init": False,
-        "norm_eps": 0.0000001,
-        "return_attn_weight": False,
-        "num_encoder_layers": 6,
-        "freq_dim": 32,
-        "n_targets": 1,
-        "num_regressor_layers": 2,
-        "fourier_modes": 12,
-        "last_activation": True
+        # "normalizer": None,    #
+        # "raw_laplacian": False, #
+        # "return_latent": False,
+        # "residual_type": "plus",
+        # "norm_type": "layer", #
+        # "norm_eps": 0.0000001,
+        # "boundary_condition": "dirichlet",
+        # "spacial_dim": 2,
+        # "spacial_fc": True,
+        # "regressor_activation": "silu",
+        # "attn_activation": "relu", #
+        # "downscaler_activation": "relu",
+        # "upscaler_activation": "silu",
+        # "encoder_dropout": 0.05,
+        # "decoder_dropout": 0,
+        # "ffn_dropout": 0.05,
+        #
+        # "n_hidden": 128,
+        # "dim_feedforward": 256,
+        # "dropout": 0.0,
+        # "decoder_type": "ifft2",
+        # "feat_extract_type": "null",
+        # "node_feats": 1,
+        # "downsample_mode": "interp",
+        # "downscaler_dropout": 0.05,
+        # "debug": False,
+        # "upsample_mode": "interp",
+        # "upscaler_dropout": 0.05,
+        # "attention_type": "galerkin",
+        # "n_head": 4,
+        # "layer_norm": False,
+        # "attn_norm": True,
+        # "batch_norm": False,
+        # "pos_dim": 2,
+        # "xavier_init": 0.01,
+        # "diagonal_weight": 0.01,
+        # "symmetric_init": False,
+        # "norm_eps": 0.0000001,
+        # "return_attn_weight": False,
+        #
+        # "freq_dim": 32,
+        # "n_targets": 1,
+        # "num_regressor_layers": 2,
+        # "fourier_modes": 12,
+        # "last_activation": True
     }
 
     subsample_nodes = 1
@@ -279,9 +284,8 @@ def train_and_test():
     no_scale_factor = False
     n_grid = int(((421 - 1) / subsample_nodes) + 1)
     n_grid_c = int(((421 - 1) / subsample_attn) + 1)
-    downsample, upsample = get_scaler_sizes(n_grid, n_grid_c, scale_factor=not no_scale_factor)
+    downsample = get_scaler_sizes(n_grid, n_grid_c, scale_factor=not no_scale_factor)
     config['downscaler_size'] = downsample
-    config['upscaler_size'] = upsample
 
     print("--- Training surrogate model ---")
     model = SurrogateModel(config)
