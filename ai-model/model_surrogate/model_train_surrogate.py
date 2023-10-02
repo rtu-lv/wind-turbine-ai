@@ -229,11 +229,16 @@ def train_and_test():
     config = {
         "lr": 1e-4,
         "batch_size": 64,
+        "conv2a_out_channels": 100,
+        "conv2b_out_channels": 100,
+        "fca_out_features": 200,
+        "fcb_out_features": 300,
+        "fc1_out_features": 200,
 
         "num_encoder_layers": 1,
         "attention_type": "galerkin",
-        "n_hidden": 128,
-        "n_head": 4,
+        "n_hidden": 10,
+        "n_head": 1,
         "dim_feedforward": 256,
         "layer_norm": False,
         "attn_norm": True,
