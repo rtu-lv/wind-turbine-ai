@@ -258,7 +258,7 @@ def tune_and_test():
 
     best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES)
     best_trained_model = SurrogateModel(best_trial.config)
-    best_checkpoint_dir = best_trial.checkpoint.dir_or_data
+    best_checkpoint_dir = best_trial.checkpoint.path
 
     # test_acc = test_accuracy(best_trained_model, device)
     # print("Best trial test set accuracy: {}".format(test_acc))
