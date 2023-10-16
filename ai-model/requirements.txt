@@ -1,6 +1,6 @@
 torch>=1.12.1
-pytorch-lightning>=2.0.8
+pytorch-lightning>=2.1.0
 matplotlib>=3.6.2
-ray>=2.4.0
+ray>=2.7.0
 pandas>=1.5.1
 scikit-learn>=1.1.3
