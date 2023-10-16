@@ -91,6 +91,8 @@ class SimpleTransformerEncoderLayer(nn.Module):
         else:
             att_output, attn_weight = self.attn(x, x, x, weight=weight)
 
+        x = x.view(x.size(0), x.size(1), -1)
+
         if self.residual_type in ['add', 'plus'] or self.residual_type is None:
             x = x + self.dropout1(att_output)
         else:
