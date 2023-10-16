@@ -237,8 +237,8 @@ def train_and_test():
 
         "num_encoder_layers": 1,
         "attention_type": "galerkin",
-        "n_hidden": 10,
-        "n_head": 1,
+        "n_hidden": 12,
+        "n_head": 4,
         "dim_feedforward": 256,
         "layer_norm": False,
         "attn_norm": True,

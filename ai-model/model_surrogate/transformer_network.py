@@ -104,12 +104,12 @@ class TransformerNetwork(Module):
         xb = self.max_pool(xb)  # 2x2 pooling
 
         for encoder in self.encoder_layers:
-            bsz = xa.size(0)
-            out_dim = self.n_head * self.pos_dim + self.n_hidden
-            xa = xa.view(bsz, -1, self.n_head, self.n_hidden // self.n_head).transpose(1, 2)
-            #x = torch.cat([pos.repeat([1, self.n_head, 1, 1]), x], dim=-1)
-            xa = xa.transpose(1, 2).contiguous() #.view(bsz, -1, out_dim)
+            xa = xa.view(xa.size(0), -1, self.n_head, self.n_hidden).contiguous()
             xa = encoder(xa)
+
+        for encoder in self.encoder_layers:
+            xb = xb.view(xb.size(0), -1, self.n_head, self.n_hidden).contiguous()
+            xb = encoder(xb)
 
         # flatten the output from the previous layer
         # IN:  xa == (4 x 5)x50     xb == (6 x 5)x50
