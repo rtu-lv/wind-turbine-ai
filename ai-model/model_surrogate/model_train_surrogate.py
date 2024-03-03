@@ -225,6 +225,8 @@ def train_and_test():
     data_cache_file = join(current_dir, args["data"])
     if not exists(data_cache_file):
         load_and_cache_data(data_cache_file)
+    else:
+        print("Using cached data set")
 
     config = {
         "lr": 1e-4,
@@ -304,9 +306,9 @@ def train_and_test():
     torch.save(model, args["model"])
 
     # Export the model in the ONNX format
-    # torch.onnx.export(best_model.model, best_model.train_dataset.dataset.get_input(), "cnn_surrogate.onnx",
+    #torch.onnx.export(model.model, model.train_dataset.dataset.get_input(), "transformer_surrogate.onnx",
     #                  export_params=True,
-    #                  input_names=['upstream', 'downstream'], output_names=['porosity'])
+    #                 input_names=['upstream', 'downstream'], output_names=['porosity'])
 
 
 if __name__ == "__main__":
