@@ -172,7 +172,7 @@ class AlyaDataset(Dataset):
         self.ang = []  # simulation V angle set
 
         # Process all the files inside folder
-        for f in file_list:
+        for i, f in enumerate(file_list):
             # read run variables 'vIn', 'ang' and '[Por]' into a dictionary
             # when reading high resolution model files, porosities have 0 value
             run_vars, lines = parse_run_variables(join(folder, f))
@@ -189,7 +189,10 @@ class AlyaDataset(Dataset):
             tmp_x3.append(x3)
             tmp_x4.append(x4)
             # store porosity matrix in temporal list
-            tmp_y.append([p / self.POR_NORM for p in run_vars["Por"]]) 
+            tmp_y.append([p / self.POR_NORM for p in run_vars["Por"]])
+
+            if i % 100 == 0:
+                print(f'Loaded: {i} / {len(file_list)}')
 
         # get X and Y dims for Upwind fields
         n_x, n_y = (tmp_x1[0].shape[1], tmp_x1[0].shape[2])
