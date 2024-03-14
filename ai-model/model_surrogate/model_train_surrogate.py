@@ -17,7 +17,7 @@ from torch import nn
 from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
-from torchmetrics import R2Score
+from torchmetrics import R2Score, PearsonCorrCoef, MeanSquaredError
 
 from convolutional_network import ConvolutionalNetwork
 
@@ -74,6 +74,21 @@ print("Number of CPUs to be used: {}".format(NUM_CPUS))
 print("Number of GPUs to be used: {}".format(NUM_GPUS))
 
 
+class CombinedLoss(torch.nn.Module):
+
+    def __init__(self):
+        super(CombinedLoss, self).__init__()
+        self.mse_loss = MeanSquaredError()
+        self.pearson_loss = PearsonCorrCoef(num_outputs=4)
+
+    def forward(self, inputs, targets):
+        mse = self.mse_loss(inputs, targets)
+        pearson = torch.mean(self.pearson_loss(inputs, targets))
+
+        alpha = 0.95
+        return alpha * mse + (1 - alpha) * (1 - abs(pearson))
+
+
 class SurrogateModel(pl.LightningModule):
     def __init__(self, config):
         super().__init__()
@@ -91,7 +106,7 @@ class SurrogateModel(pl.LightningModule):
 
         self.__load_data()
 
-        self.loss_function = nn.MSELoss()
+        self.loss_function = CombinedLoss()
 
         self.train_accuracy = R2Score(num_outputs=4)
         self.val_accuracy = R2Score(num_outputs=4)
