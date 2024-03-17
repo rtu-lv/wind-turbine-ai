@@ -83,10 +83,10 @@ class CombinedLoss(torch.nn.Module):
 
     def forward(self, inputs, targets):
         mse = self.mse_loss(inputs, targets)
-        pearson = torch.mean(self.pearson_loss(inputs, targets))
+        pearson = torch.mean(torch.abs(self.pearson_loss(inputs, targets)))
 
         alpha = 0.98
-        return alpha * mse + (1 - alpha) * (1 - torch.abs(pearson))
+        return alpha * mse + (1 - alpha) * (1 - pearson)
 
 
 class SurrogateModel(pl.LightningModule):
