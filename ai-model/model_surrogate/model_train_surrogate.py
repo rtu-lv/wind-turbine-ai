@@ -68,7 +68,8 @@ if not torch.cuda.is_available():
     print("[WARN] CUDA is not available")
 
 NUM_CPUS = multiprocessing.cpu_count() if (args["num_cpus"] is None) else args["num_cpus"]
-NUM_GPUS = torch.cuda.device_count() if (args["num_gpus"] is None or not torch.cuda.is_available()) else args["num_gpus"]
+NUM_GPUS = torch.cuda.device_count() if (args["num_gpus"] is None or not torch.cuda.is_available()) else args[
+    "num_gpus"]
 
 print("Number of CPUs to be used: {}".format(NUM_CPUS))
 print("Number of GPUs to be used: {}".format(NUM_GPUS))
@@ -100,9 +101,9 @@ class SurrogateModel(pl.LightningModule):
             self.model = torch.load(args["model"])
         else:
             self.model = ConvolutionalNetwork(config, num_channels=2)
-            #self.model = SpatialTransformer()
+            # self.model = SpatialTransformer()
 
-        self.num_workers = 0#multiprocessing.cpu_count()
+        self.num_workers = 0  # multiprocessing.cpu_count()
 
         self.__load_data()
 
@@ -129,8 +130,8 @@ class SurrogateModel(pl.LightningModule):
         else:
             raise Exception("Alya cached data file not found")
 
-        #self.train_dataset.transform_porosity()
-        #self.test_dataset.transform_porosity()
+        # self.train_dataset.transform_porosity()
+        # self.test_dataset.transform_porosity()
         # self.train_dataset.plot_data()
 
         # calculate the train/validation split
@@ -209,7 +210,7 @@ def train_surrogate_model(config, num_epochs, num_gpus):
     metrics = {"loss": "summary/validation_loss", "accuracy": "summary/validation_accuracy"}
     callbacks = [LearningRateMonitor(logging_interval='step'), TuneReportCallback(metrics, on="validation_end"),
                  TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
-                ]
+                 ]
 
     trainer = pl.Trainer(accelerator="gpu" if NUM_GPUS > 0 else "cpu",
                          devices=num_gpus, max_epochs=num_epochs,
@@ -221,15 +222,15 @@ def tune_surrogate_model(num_epochs, num_samples):
     config = {
         "lr": tune.loguniform(1e-4, 1e-1),
         "batch_size": tune.choice([64, 128, 256]),
-        "conv2a_out_channels" : tune.choice([50, 75, 100]),
+        "conv2a_out_channels": tune.choice([50, 75, 100]),
         "conv2b_out_channels": tune.choice([50, 75, 100]),
-        "fca_out_features" : tune.choice([100, 200, 300]),
+        "fca_out_features": tune.choice([100, 200, 300]),
         "fcb_out_features": tune.choice([200, 300, 400]),
         "fc1_out_features": tune.choice([100, 200, 300])
     }
     trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=NUM_GPUS)
 
-    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=num_epochs // 10, reduction_factor=2)
+    scheduler = ASHAScheduler(max_t=num_epochs*2, grace_period=num_epochs // 10, reduction_factor=2)
 
     resources_per_trial = {
         "cpu": NUM_CPUS,
@@ -255,6 +256,7 @@ def tune_surrogate_model(num_epochs, num_samples):
     print("Best trial final validation accuracy: {}".format(best_trial.last_result["accuracy"]))
 
     return best_trial
+
 
 def load_and_cache_data(data_cache_file):
     print("[INFO] loading and caching Alya data files...")
@@ -287,13 +289,11 @@ def tune_and_test():
     torch.save(best_trained_model.model, args["model"])
 
     # Export the model in the ONNX format
-    torch.onnx.export(best_trained_model.model, best_trained_model.train_dataset.dataset.get_input(), "cnn_surrogate.onnx",
+    torch.onnx.export(best_trained_model.model, best_trained_model.train_dataset.dataset.get_input(),
+                      "cnn_surrogate.onnx",
                       export_params=True,
                       input_names=['upstream', 'downstream'], output_names=['porosity'])
 
 
 if __name__ == "__main__":
     tune_and_test()
-
-
-
