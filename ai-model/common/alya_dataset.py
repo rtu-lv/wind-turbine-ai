@@ -19,6 +19,8 @@ from model_surrogate.convolutional_network import ConvolutionalNetwork
 
 # get vector fields (3 channels: vx, vy, p) from an alya results file
 def get_fields(lines, time_steps):
+    dataUS_XY = []
+    dataDS_XY = []
     dataUS = []  # Init Upstream data list
     dataDS = []  # Init Downstream data list
 
@@ -34,22 +36,40 @@ def get_fields(lines, time_steps):
                 UPS_flag = False
                 DWS_flag = True
             else:
-                # Append [Xcoord, Ycoord, Vx, Vy, P] from each line to dataUS
-                dataUS.append([float(d) for d in l.split()])
+                ld = l.split()
+                # Append [Xcoord, Ycoord] from each line to dataUS_XY
+                dataUS_XY.append(ld[:2])
+                # Append [Vx, Vy, P] from each line to dataUS
+                dataUS.append(ld[2:])
         elif (DWS_flag):
-            # Append [Xcoord, Ycoord, Vx, Vy, P] from each line to dataUS
-            dataDS.append([float(d) for d in l.split()])
+            ld = l.split()
+            # Append [Xcoord, Ycoord] from each line to dataDS_XY
+            dataDS_XY.append(ld[:2])
+            # Append [Vx, Vy, P] from each line to dataDS_XY
+            dataDS.append(ld[2:])
 
     # Convert to numpy arrays
-    np_dataUS = np.array(dataUS)
-    np_dataDS = np.array(dataDS)
+    np_dataUS_XY = np.array(dataUS_XY).astype(np.float32)
+    np_dataDS_XY = np.array(dataDS_XY).astype(np.float32)
 
-    cols = np.shape(np_dataUS)[1]
-    actual_time_steps = cols // 5
-    redundant_cols = cols % 5
+    v_UPS = []
+    v_DWS = []
+    p_UPS = []
+    p_DWS = []
+
+    if len(dataUS) == 0 or len(dataDS) == 0:
+        print("Empty Alya data")
+        return v_UPS, v_DWS, p_UPS, p_DWS
+
+    np_dataUS = np.array(dataUS).astype(np.float32)
+    np_dataDS = np.array(dataDS).astype(np.float32)
+
+    data_cols = np.shape(np_dataUS)[1]
+    actual_time_steps = data_cols // 3  # 3 items per record (Vx, Vy, P)
+    redundant_cols = data_cols % 3
 
     if redundant_cols > 0:
-        cols_to_delete = list(range(cols - redundant_cols, cols))
+        cols_to_delete = list(range(data_cols - redundant_cols, data_cols))
 
         np_dataUS = np.delete(np_dataUS, cols_to_delete, axis=1)
         np_dataDS = np.delete(np_dataDS, cols_to_delete, axis=1)
@@ -57,10 +77,15 @@ def get_fields(lines, time_steps):
     np_data_us_t = np.hsplit(np_dataUS, actual_time_steps)
     np_data_ds_t = np.hsplit(np_dataDS, actual_time_steps)
 
-    v_UPS = []
-    v_DWS = []
-    p_UPS = []
-    p_DWS = []
+    # Get list of coordinates
+    x_list_US = sorted([*set(np_dataUS_XY[:, [0]].flatten())])  # get a list of x coords set
+    y_list_US = sorted([*set(np_dataUS_XY[:, [1]].flatten())])  # and also from y
+
+    x_list_DS = sorted([*set(np_dataDS_XY[:, [0]].flatten())])  # get a list of x coords set
+    y_list_DS = sorted([*set(np_dataDS_XY[:, [1]].flatten())])  # and also from y
+
+    x_list = [x_list_US, x_list_DS]
+    y_list = [y_list_US, y_list_DS]
 
     for data_us_t, data_ds_t in zip(np_data_us_t, np_data_ds_t):
         v_ups_item = []
@@ -69,24 +94,23 @@ def get_fields(lines, time_steps):
         p_dws_item = []
 
         for i, d_array in enumerate([data_us_t, data_ds_t]):
-            # Get list of coordinates
-            x_list = sorted([*set(d_array[:, [0]].flatten())])  # get a list of x coords set
-            y_list = sorted([*set(d_array[:, [1]].flatten())])  # and also from y
-
             # dimensions of the field
-            n_x, n_y = (len(x_list), len(y_list))
+            n_x, n_y = (len(x_list[i]), len(y_list[i]))
 
             # 2 channels field initialization: vx, vy
             # and 1 channel for press
             v_field = np.zeros((2, n_x, n_y))
             p_field = np.zeros((n_x, n_y))
 
-            for d in d_array:
-                x, y = (d[0], d[1])  # coordinates
-                vx, vy = (d[2], d[3])  # velocity components
-                p = d[4]  # pressure
-                idx_x = x_list.index(x)  # x and y coordinates indices
-                idx_y = y_list.index(y)
+            for j, d in enumerate(d_array):
+                if i == 0:
+                    x, y = np_dataUS_XY[j]  # coordinates
+                else:
+                    x, y = np_dataDS_XY[j]
+                vx, vy = (d[0], d[1])  # velocity components
+                p = d[2]  # pressure
+                idx_x = x_list[i].index(x)  # x and y coordinates indices
+                idx_y = y_list[i].index(y)
                 # Velocity field component X
                 v_field[0, idx_x, idx_y] = vx
                 # Velocity field component Y
@@ -191,6 +215,8 @@ class AlyaDataset(Dataset):
 
         # Process all the files inside folder
         for i, f in enumerate(file_list):
+            print(f"Loading Alya file {f}")
+
             # read run variables 'vIn', 'ang' and '[Por]' into a dictionary
             # when reading high resolution model files, porosities have 0 value
             run_vars, lines = parse_run_variables(join(folder, f))
@@ -207,18 +233,19 @@ class AlyaDataset(Dataset):
             tmp_x2.append(x2)
             tmp_x3.append(x3)
             tmp_x4.append(x4)
-            # store porosity matrix in temporal list
-            tmp_y.append([p / self.POR_NORM for p in run_vars["Por"]])
+            if "Por" in run_vars:
+                # store porosity matrix in temporal list
+                tmp_y.append([p / self.POR_NORM for p in run_vars["Por"]])
 
-            if i % 100 == 0:
-                print(f"Loaded {i} Alya files")
+            #if i % 100 == 0:
+            print(f"Loaded {i + 1} Alya files")
 
         print("Finished loading of Alya files")
 
         # get X and Y dims for Upwind fields
         n_x, n_y = (tmp_x1[0][0].shape[1], tmp_x1[0][0].shape[2])
 
-        # for tmp_x1 = [ [ [ [vx_1...vx_ny]_1 ... [vx_1...vy_ny]_nx ]
+        # for tmp_x1 = [ [ [ [vx_1...vx_0ny]_1 ... [vx_1...vy_ny]_nx ]
         #                  [ [vy_1...vy_ny]_1 ... [vy_1...vy_ny]_nx ] ] ... ]
         arr_x1 = np.array(tmp_x1).reshape(1, -1, 2, n_x, n_y)
         self.x1_data = torch.tensor(arr_x1, dtype=torch.float32)  # tensor

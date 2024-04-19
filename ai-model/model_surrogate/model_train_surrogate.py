@@ -212,8 +212,12 @@ def get_scaler_sizes(n_f, n_c, scale_factor=True):
 def load_and_cache_data(data_cache_file):
     print("[INFO] loading and caching Alya data files...")
 
+    print("- Loading training data files")
     train_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, DATA_TRAIN_SUBDIR))
+
+    print("- Loading test data files")
     test_dataset = AlyaDataset(os.path.join(DATA_BASE_PATH, DATA_TEST_SUBDIR))
+
     with open(data_cache_file, 'wb') as f:
         pickle.dump(train_dataset, f, pickle.HIGHEST_PROTOCOL)
         pickle.dump(test_dataset, f, pickle.HIGHEST_PROTOCOL)
