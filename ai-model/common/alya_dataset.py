@@ -237,29 +237,30 @@ class AlyaDataset(Dataset):
                 # store porosity matrix in temporal list
                 tmp_y.append([p / self.POR_NORM for p in run_vars["Por"]])
 
-            #if i % 100 == 0:
-            print(f"Loaded {i + 1} Alya files")
+            if i % 50 == 0:
+                print(f"Loaded {i + 1} Alya files")
 
         print("Finished loading of Alya files")
 
         # get X and Y dims for Upwind fields
+        n_t = len(tmp_x1[0])
         n_x, n_y = (tmp_x1[0][0].shape[1], tmp_x1[0][0].shape[2])
 
         # for tmp_x1 = [ [ [ [vx_1...vx_0ny]_1 ... [vx_1...vy_ny]_nx ]
         #                  [ [vy_1...vy_ny]_1 ... [vy_1...vy_ny]_nx ] ] ... ]
-        arr_x1 = np.array(tmp_x1).reshape(1, -1, 2, n_x, n_y)
+        arr_x1 = np.array(tmp_x1).reshape(n_t, -1, 2, n_x, n_y)
         self.x1_data = torch.tensor(arr_x1, dtype=torch.float32)  # tensor
 
         # Convert Upwind Pressure field
         # for tmp_x3 = [ [ [P_1...P_ny]_1 ... [P_1...P_ny]_nx ] ... ]
-        arr_x3 = np.array(tmp_x3).reshape(1, -1, n_x, n_y)
+        arr_x3 = np.array(tmp_x3).reshape(n_t, -1, n_x, n_y)
         self.x3_data = torch.tensor(arr_x3, dtype=torch.float32)  # tensor
 
         # repeat for Downwind velocity and pressure fields
         n_x, n_y = (tmp_x2[0][0].shape[1], tmp_x2[0][0].shape[2])
-        arr_x2 = np.array(tmp_x2).reshape(1, -1, 2, n_x, n_y)
+        arr_x2 = np.array(tmp_x2).reshape(n_t, -1, 2, n_x, n_y)
         self.x2_data = torch.tensor(arr_x2, dtype=torch.float32)  # tensor
-        arr_x4 = np.array(tmp_x4).reshape(1, -1, n_x, n_y)
+        arr_x4 = np.array(tmp_x4).reshape(n_t, -1, n_x, n_y)
         self.x4_data = torch.tensor(arr_x4, dtype=torch.float32)
 
         # Convert list data into pyTorch tensor file format
