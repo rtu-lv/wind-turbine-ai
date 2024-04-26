@@ -199,10 +199,12 @@ class AlyaDataset(Dataset):
             y_list = model(tensVU, tensVD).tolist()
             return y_list
 
-    # Initialization function needs a folder containing the results files
-    # from Alya
+    # Initialization function needs a folder containing the results files from Alya
     def __init__(self, folder, use_cnn_a=False, surrCNN=""):
-        file_list = [f for f in listdir(folder) if isfile(join(folder, f))]
+        try:
+            file_list = [f for f in listdir(folder) if isfile(join(folder, f))]
+        except OSError as e:
+            sys.exit(f"Unable to open {folder}: {e}")
         tmp_x1 = []  # Input variable x1 == V field Upwind
         tmp_x2 = []  # Input variable x2 == V field Downwind
         tmp_x3 = []  # Input variable x3 == Press field Upwind
