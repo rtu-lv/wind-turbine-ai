@@ -76,8 +76,8 @@ class TransformerNetwork(Module):
 
         self.bn = BatchNorm1d(num_features=fc1_out_features)
 
-        # get output layer as a single value
-        self.fcOut = Linear(in_features=fc1_out_features, out_features=4)
+        # get output layer
+        self.fcOut = Linear(in_features=fc1_out_features, out_features=1)
 
         # self.apply(self._init_weights)
 
