@@ -11,6 +11,9 @@ conda create --name raise python=3.11
 * PyTorch CUDA
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
 
+** MacOS
+conda install pytorch::pytorch torchvision torchaudio -c pytorch
+
 * PyTorch Lightning
 conda install lightning -c conda-forge
 
