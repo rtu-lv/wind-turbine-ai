@@ -338,15 +338,12 @@ class AlyaDataset(Dataset):
 
     # function to get an item from the dataset
     def __getitem__(self, idx):
-        number_of_time_steps = self.x1_data.shape[0]
-        time_idx = idx // number_of_time_steps
-        space_idx = idx % number_of_time_steps
+        v_uw_field = self.x1_data[:, idx, :]
+        v_dw_field = self.x2_data[:, idx, :]
+        p_uw_field = self.x3_data[:, idx, :]
+        p_dw_field = self.x4_data[:, idx, :]
 
-        v_uw_field = self.x1_data[time_idx, space_idx, :]
-        v_dw_field = self.x2_data[time_idx, space_idx, :]
-        p_uw_field = self.x3_data[time_idx, space_idx, :]
-        p_dw_field = self.x4_data[time_idx, space_idx, :]
-        poro = self.y_data[space_idx, :]
+        poro = self.y_data[idx, :]
         return v_uw_field, v_dw_field, p_uw_field, p_dw_field, poro
 
     # function to get targets for testing

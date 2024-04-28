@@ -15,7 +15,7 @@ from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
 from torchmetrics import R2Score
-from transformer_network import TransformerNetwork
+from non_stationary_model import NonStationaryModel
 
 TUNING_LOGS_DIR = "tuning_logs"
 
@@ -78,7 +78,7 @@ class SurrogateModel(pl.LightningModule):
         if args["continue"] is not None:
             self.model = torch.load(args["model"])
         else:
-            self.model = TransformerNetwork(config, num_channels=2)
+            self.model = NonStationaryModel(config, num_channels=2)
 
         self.num_workers = 0#multiprocessing.cpu_count()
 
@@ -240,54 +240,7 @@ def train_and_test():
         "fca_out_features": 200,
         "fcb_out_features": 300,
         "fc1_out_features": 200,
-
-        "num_encoder_layers": 1,
-        "attention_type": "galerkin",
-        "n_hidden": 12,
-        "n_head": 4,
-        "dim_feedforward": 256,
-        "layer_norm": False,
-        "attn_norm": True,
-        "batch_norm": False,
-        "pos_dim": 2,
-        "xavier_init": 0.01,
-        "diagonal_weight": 0.01,
-        "symmetric_init": False,
-        "return_attn_weight": False,
-        "encoder_dropout": 0.05,
-        "ffn_dropout": 0.05,
-        "norm_eps": 0.0000001,
-        "debug": False,
-
-        # "normalizer": None,    #
-        # "raw_laplacian": False, #
-        # "return_latent": False,
-        # "residual_type": "plus",
-        # "norm_type": "layer", #
-        # "boundary_condition": "dirichlet",
-        # "spacial_dim": 2,
-        # "spacial_fc": True,
-        # "regressor_activation": "silu",
-        # "attn_activation": "relu", #
-        # "downscaler_activation": "relu",
-        # "upscaler_activation": "silu",
-        # "decoder_dropout": 0,
-        #
-        # "dropout": 0.0,
-        # "decoder_type": "ifft2",
-        # "feat_extract_type": "null",
-        # "node_feats": 1,
-        # "downsample_mode": "interp",
-        # "downscaler_dropout": 0.05,
-        # "upsample_mode": "interp",
-        # "upscaler_dropout": 0.05,
-        # "norm_eps": 0.0000001,
-        #
-        # "freq_dim": 32,
-        # "n_targets": 1,
-        # "num_regressor_layers": 2,
-        # "fourier_modes": 12,
-        # "last_activation": True
+        "cnn_out_features": 4,
     }
 
     subsample_nodes = 1

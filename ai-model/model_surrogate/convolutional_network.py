@@ -55,18 +55,19 @@ class ConvolutionalNetwork(Module):
         fcb_out_features = config["fcb_out_features"]
 
         # initialize separate set of FC => RELU layers
-        self.fca = Linear(in_features=30*conv2a_out_channels*num_channels, out_features=fca_out_features)
-        self.fcb = Linear(in_features=36*conv2b_out_channels*num_channels, out_features=fcb_out_features)
+        self.fca = Linear(in_features=30 * conv2a_out_channels * num_channels, out_features=fca_out_features)
+        self.fcb = Linear(in_features=36 * conv2b_out_channels * num_channels, out_features=fcb_out_features)
 
         fc1_out_features = config["fc1_out_features"]
 
         # initialize first common linear layer FC => RELU
-        self.fc1 = Linear(in_features=fca_out_features+fcb_out_features, out_features=fc1_out_features)
+        self.fc1 = Linear(in_features=fca_out_features + fcb_out_features, out_features=fc1_out_features)
 
         self.bn = BatchNorm1d(num_features=fc1_out_features)
 
         # get output layer as a single value
-        self.fcOut = Linear(in_features=fc1_out_features, out_features=4)
+        cnn_out_features = config["cnn_out_features"]
+        self.fcOut = Linear(in_features=fc1_out_features, out_features=cnn_out_features)
 
         # self.apply(self._init_weights)
 
