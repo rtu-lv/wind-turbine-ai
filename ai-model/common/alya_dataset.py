@@ -215,6 +215,8 @@ class AlyaDataset(Dataset):
 
         print("Starting loading of Alya files...")
 
+        prev_time_steps = None
+
         # Process all the files inside folder
         for i, f in enumerate(file_list):
             print(f"Loading Alya file {f}")
@@ -222,6 +224,13 @@ class AlyaDataset(Dataset):
             # read run variables 'vIn', 'ang' and '[Por]' into a dictionary
             # when reading high resolution model files, porosities have 0 value
             run_vars, lines = parse_run_variables(join(folder, f))
+
+            if prev_time_steps is not None and run_vars['time_steps'] != prev_time_steps:
+                sys.exit(f"Alya data files with different time steps not supported: {run_vars['time_steps']} <> {prev_time_steps}")
+            else:
+                prev_time_steps = run_vars['time_steps']
+
+            self.time_steps = run_vars['time_steps']
 
             # store run variables (for debugging purposes)
             self.vIn.append(run_vars["vIn"])
@@ -329,13 +338,15 @@ class AlyaDataset(Dataset):
 
     # function to get an item from the dataset
     def __getitem__(self, idx):
-        time_idx = 0
+        number_of_time_steps = self.x1_data.shape[0]
+        time_idx = idx // number_of_time_steps
+        space_idx = idx % number_of_time_steps
 
-        v_uw_field = self.x1_data[time_idx, idx, :]
-        v_dw_field = self.x2_data[time_idx, idx, :]
-        p_uw_field = self.x3_data[time_idx, idx, :]
-        p_dw_field = self.x4_data[time_idx, idx, :]
-        poro = self.y_data[idx, :]
+        v_uw_field = self.x1_data[time_idx, space_idx, :]
+        v_dw_field = self.x2_data[time_idx, space_idx, :]
+        p_uw_field = self.x3_data[time_idx, space_idx, :]
+        p_dw_field = self.x4_data[time_idx, space_idx, :]
+        poro = self.y_data[space_idx, :]
         return v_uw_field, v_dw_field, p_uw_field, p_dw_field, poro
 
     # function to get targets for testing
