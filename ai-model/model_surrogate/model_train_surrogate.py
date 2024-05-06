@@ -263,9 +263,9 @@ def train_and_test():
     torch.save(model, args["model"])
 
     # Export the model in the ONNX format
-    #torch.onnx.export(model.model, model.train_dataset.dataset.get_input(), "transformer_surrogate.onnx",
-    #                  export_params=True,
-    #                 input_names=['upstream', 'downstream'], output_names=['porosity'])
+    torch.onnx.export(model.model.cpu(), model.train_dataset.dataset.get_input_cpu(), "nonstationary_surrogate.onnx",
+                      export_params=True,
+                      input_names=['upstream', 'downstream'], output_names=['porosity'])
 
 
 if __name__ == "__main__":

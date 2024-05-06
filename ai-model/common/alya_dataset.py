@@ -332,6 +332,9 @@ class AlyaDataset(Dataset):
     def get_input(self):
         return self.x1_data, self.x2_data
 
+    def get_input_cpu(self):
+        return self.x1_data.cpu(), self.x2_data.cpu()
+
     # return size of the dataset
     def __len__(self):
         return len(self.y_data)
