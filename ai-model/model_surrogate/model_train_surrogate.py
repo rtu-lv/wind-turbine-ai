@@ -80,7 +80,7 @@ class SurrogateModel(pl.LightningModule):
         else:
             self.model = NonStationaryModel(config, num_channels=2)
 
-        self.num_workers = 0#multiprocessing.cpu_count()
+        self.num_workers = multiprocessing.cpu_count() // 2
 
         self.__load_data()
 
@@ -263,9 +263,9 @@ def train_and_test():
     torch.save(model, args["model"])
 
     # Export the model in the ONNX format
-    torch.onnx.export(model.model.cpu(), model.train_dataset.dataset.get_input_cpu(), "nonstationary_surrogate.onnx",
-                      export_params=True,
-                      input_names=['upstream', 'downstream'], output_names=['porosity'])
+    # torch.onnx.export(model.model.cpu(), model.train_dataset.dataset.get_input_cpu(), "nonstationary_surrogate.onnx",
+    #                  export_params=True,
+    #                  input_names=['upstream', 'downstream'], output_names=['porosity'])
 
 
 if __name__ == "__main__":

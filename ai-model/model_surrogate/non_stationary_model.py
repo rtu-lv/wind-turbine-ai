@@ -12,6 +12,8 @@ class NonStationaryModel(nn.Module):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.time_steps = time_steps
+        self.recurrent_type = recurrent_type
+
         self.cnn_models = nn.ModuleList(
             [ConvolutionalNetwork(config, num_channels=num_channels) for i in range(self.time_steps)])
 
@@ -19,13 +21,16 @@ class NonStationaryModel(nn.Module):
         self.hidden_size_rnn = 2
         self.input_size_rnn = config["cnn_out_features"]
 
-        match recurrent_type:
+        match self.recurrent_type:
             case "RNN":
                 self.rnn = nn.RNN(input_size=self.input_size_rnn, hidden_size=self.hidden_size_rnn,
                                   num_layers=self.num_layers_rnn, batch_first=True)
             case "LSTM":
-                self.rnn = nn.LSTM(input_size=self.input_size_rnn, hidden_size=self.hidden_size_rnn,
-                                   num_layers=self.num_layers_rnn, batch_first=True)
+                self.lstm = nn.LSTM(input_size=self.input_size_rnn, hidden_size=self.hidden_size_rnn,
+                                    num_layers=self.num_layers_rnn, batch_first=True)
+            case "GRU":
+                self.gru = nn.GRU(input_size=self.input_size_rnn, hidden_size=self.hidden_size_rnn,
+                                  num_layers=self.num_layers_rnn, batch_first=True)
             case _:
                 print(f"Unsupported recurrent type: {recurrent_type}")
 
@@ -46,13 +51,23 @@ class NonStationaryModel(nn.Module):
 
         h0 = torch.zeros(self.num_layers_rnn, batch_size, self.hidden_size_rnn, requires_grad=True,
                          device=self.device).float()
-        out, hn = self.rnn(cnn_outputs, h0)
+
+        hn = None
+        match self.recurrent_type:
+            case "RNN":
+                _, hn = self.rnn(cnn_outputs, h0)
+            case "LSTM":
+                c0 = torch.zeros(self.num_layers_rnn, batch_size, self.hidden_size_rnn, requires_grad=True,
+                                 device=self.device).float()
+                _, (hn, _) = self.lstm(cnn_outputs, (h0, c0))
+            case "GRU":
+                _, hn = self.gru(cnn_outputs, h0)
 
         # out needs to be reshaped into dimensions (batch_size, hidden_size_lin)
-        out = nn.functional.tanh(hn)
+        # out = nn.functional.tanh(hn)
 
         # Finally we get out in the shape (batch_size, output_size)
-        out = self.linear(out)
+        out = self.linear(hn)
 
         return torch.squeeze(out, 0)
 
