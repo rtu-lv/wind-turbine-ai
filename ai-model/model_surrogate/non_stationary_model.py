@@ -17,29 +17,29 @@ class NonStationaryModel(nn.Module):
         self.cnn_models = nn.ModuleList(
             [ConvolutionalNetwork(config, num_channels=num_channels) for i in range(self.time_steps)])
 
-        self.num_layers_rnn = 1
-        self.hidden_size_rnn = 2
-        self.input_size_rnn = config["cnn_out_features"]
+        self.num_layers_recurrent = 1
+        self.hidden_size_recurrent = 4
+        self.input_size_recurrent = config["cnn_out_features"]
 
         match self.recurrent_type:
             case "RNN":
-                self.rnn = nn.RNN(input_size=self.input_size_rnn, hidden_size=self.hidden_size_rnn,
-                                  num_layers=self.num_layers_rnn, batch_first=True)
+                self.rnn = nn.RNN(input_size=self.input_size_recurrent, hidden_size=self.hidden_size_recurrent,
+                                  num_layers=self.num_layers_recurrent, batch_first=True)
             case "LSTM":
-                self.lstm = nn.LSTM(input_size=self.input_size_rnn, hidden_size=self.hidden_size_rnn,
-                                    num_layers=self.num_layers_rnn, batch_first=True)
+                self.lstm = nn.LSTM(input_size=self.input_size_recurrent, hidden_size=self.hidden_size_recurrent,
+                                    num_layers=self.num_layers_recurrent, batch_first=True)
             case "GRU":
-                self.gru = nn.GRU(input_size=self.input_size_rnn, hidden_size=self.hidden_size_rnn,
-                                  num_layers=self.num_layers_rnn, batch_first=True)
+                self.gru = nn.GRU(input_size=self.input_size_recurrent, hidden_size=self.hidden_size_recurrent,
+                                  num_layers=self.num_layers_recurrent, batch_first=True)
             case _:
                 print(f"Unsupported recurrent type: {recurrent_type}")
 
-        self.linear = nn.Linear(self.hidden_size_rnn, 1)
+        self.linear = nn.Linear(self.hidden_size_recurrent, 1)
 
     def forward(self, xa, xb):
         batch_size = xa.size(0)
 
-        cnn_outputs = torch.zeros(self.time_steps, batch_size, self.input_size_rnn, device=self.device)
+        cnn_outputs = torch.zeros(self.time_steps, batch_size, self.input_size_recurrent, device=self.device)
 
         for time_idx, cnn in enumerate(self.cnn_models):
             xa_t = xa[:, time_idx, :]
@@ -49,7 +49,7 @@ class NonStationaryModel(nn.Module):
 
         cnn_outputs = torch.swapaxes(cnn_outputs, 0, 1).to(self.device)
 
-        h0 = torch.zeros(self.num_layers_rnn, batch_size, self.hidden_size_rnn, requires_grad=True,
+        h0 = torch.zeros(self.num_layers_recurrent, batch_size, self.hidden_size_recurrent, requires_grad=True,
                          device=self.device).float()
 
         hn = None
@@ -57,7 +57,7 @@ class NonStationaryModel(nn.Module):
             case "RNN":
                 _, hn = self.rnn(cnn_outputs, h0)
             case "LSTM":
-                c0 = torch.zeros(self.num_layers_rnn, batch_size, self.hidden_size_rnn, requires_grad=True,
+                c0 = torch.zeros(self.num_layers_recurrent, batch_size, self.hidden_size_recurrent, requires_grad=True,
                                  device=self.device).float()
                 _, (hn, _) = self.lstm(cnn_outputs, (h0, c0))
             case "GRU":
