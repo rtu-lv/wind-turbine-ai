@@ -10,6 +10,10 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.callbacks import LearningRateMonitor
+from pytorch_lightning.loggers import TensorBoardLogger
+from ray import tune
+from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
+from ray.tune.schedulers import ASHAScheduler
 from torch import nn
 from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
@@ -182,6 +186,11 @@ class SurrogateModel(pl.LightningModule):
 
 
 def train_surrogate_model(model, num_epochs, num_gpus):
+    #metrics = {"loss": "summary/validation_loss", "accuracy": "summary/validation_accuracy"}
+    #callbacks = [LearningRateMonitor(logging_interval='step'), TuneReportCheckpointCallback(metrics, on="validation_end"),
+    #             TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
+    #             ]
+
     callbacks = [LearningRateMonitor(logging_interval='step')]
 
     trainer = pl.Trainer(accelerator="gpu" if num_gpus > 0 else "cpu", devices=num_gpus if num_gpus > 0 else 1,
