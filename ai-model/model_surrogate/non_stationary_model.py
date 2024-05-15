@@ -19,7 +19,7 @@ class NonStationaryModel(nn.Module):
 
         self.num_layers_recurrent = 1
         self.hidden_size_recurrent = 4
-        self.input_size_recurrent = config["cnn_out_features"]
+        self.input_size_recurrent = 4 #config["cnn_out_features"]
 
         match self.recurrent_type:
             case "RNN":
