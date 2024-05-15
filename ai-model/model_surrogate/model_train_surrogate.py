@@ -242,7 +242,8 @@ def tune_surrogate_model(num_epochs, num_samples):
         "conv2b_out_channels": tune.choice([50, 75, 100]),
         "fca_out_features": tune.choice([100, 200, 300]),
         "fcb_out_features": tune.choice([200, 300, 400]),
-        "fc1_out_features": tune.choice([100, 200, 300])
+        "fc1_out_features": tune.choice([100, 200, 300]),
+        "cnn_out_features": tune.choice([4, 4, 4]),
     }
     trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=NUM_GPUS)
 
@@ -313,6 +314,14 @@ def train_and_test():
     best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES)
     best_trained_model = SurrogateModel(best_trial.config)
     best_checkpoint_dir = best_trial.checkpoint.path
+
+    print("--- Testing surrogate model ---")
+    logger = TensorBoardLogger(TUNING_LOGS_DIR)
+    trainer = pl.Trainer(accelerator="gpu" if NUM_GPUS > 0 else "cpu", devices=NUM_GPUS, logger=logger)
+    trainer.test(model=best_trained_model, ckpt_path=os.path.join(best_checkpoint_dir, "checkpoint"))
+
+    # serialize the model to disk
+    torch.save(best_trained_model.model, args["model"])
 
     # serialize the model to disk
     #torch.save(model, args["model"])
