@@ -186,12 +186,12 @@ class SurrogateModel(pl.LightningModule):
 
 
 def train_surrogate_model(model, num_epochs, num_gpus):
-    #metrics = {"loss": "summary/validation_loss", "accuracy": "summary/validation_accuracy"}
-    #callbacks = [LearningRateMonitor(logging_interval='step'), TuneReportCheckpointCallback(metrics, on="validation_end"),
-    #             TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
-    #             ]
-
-    callbacks = [LearningRateMonitor(logging_interval='step')]
+    metrics = {"loss": "summary/validation_loss", "accuracy": "summary/validation_accuracy"}
+    callbacks = [
+        LearningRateMonitor(logging_interval='step'), TuneReportCheckpointCallback(metrics, on="validation_end"),
+        TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
+    ]
+    #callbacks = [LearningRateMonitor(logging_interval='step')]
 
     trainer = pl.Trainer(accelerator="gpu" if num_gpus > 0 else "cpu", devices=num_gpus if num_gpus > 0 else 1,
                          max_epochs=num_epochs, callbacks=callbacks, enable_progress_bar=True)
@@ -232,6 +232,46 @@ def load_and_cache_data(data_cache_file):
         pickle.dump(test_dataset, f, pickle.HIGHEST_PROTOCOL)
 
 
+def tune_surrogate_model(num_epochs, num_samples):
+    config = {
+        "lr": tune.loguniform(1e-4, 1e-1),
+        "batch_size": tune.choice([64, 128, 256]),
+        "conv2a_out_channels": tune.choice([50, 75, 100]),
+        "conv2b_out_channels": tune.choice([50, 75, 100]),
+        "fca_out_features": tune.choice([100, 200, 300]),
+        "fcb_out_features": tune.choice([200, 300, 400]),
+        "fc1_out_features": tune.choice([100, 200, 300])
+    }
+    trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=NUM_GPUS)
+
+    scheduler = ASHAScheduler(max_t=num_epochs*2, grace_period=num_epochs // 10, reduction_factor=2)
+
+    resources_per_trial = {
+        "cpu": NUM_CPUS,
+        "gpu": NUM_GPUS
+    }
+
+    result = tune.run(
+        trainable,
+        resources_per_trial=resources_per_trial,
+        scheduler=scheduler,
+        metric="loss",
+        mode="min",
+        config=config,
+        num_samples=num_samples,
+        name=TUNING_LOGS_DIR,
+        local_dir=os.getcwd(),
+        resume='AUTO+ERRORED'
+    )
+
+    best_trial = result.get_best_trial("loss", "min", "last")
+    print("Best trial config: {}".format(best_trial.config))
+    print("Best trial final validation loss: {}".format(best_trial.last_result["loss"]))
+    print("Best trial final validation accuracy: {}".format(best_trial.last_result["accuracy"]))
+
+    return best_trial
+
+
 def train_and_test():
     torch.set_float32_matmul_precision('medium')
 
@@ -267,6 +307,10 @@ def train_and_test():
 
     print("--- Testing surrogate model ---")
     trainer.test(ckpt_path='best')
+
+    best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES)
+    best_trained_model = SurrogateModel(best_trial.config)
+    best_checkpoint_dir = best_trial.checkpoint.path
 
     # serialize the model to disk
     torch.save(model, args["model"])
