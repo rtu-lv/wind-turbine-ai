@@ -185,7 +185,9 @@ class SurrogateModel(pl.LightningModule):
         return [opt], [sch1, sch2]
 
 
-def train_surrogate_model(model, num_epochs, num_gpus):
+def train_surrogate_model(config, num_epochs, num_gpus):
+    model = SurrogateModel(config)
+
     metrics = {"loss": "summary/validation_loss", "accuracy": "summary/validation_accuracy"}
     callbacks = [
         LearningRateMonitor(logging_interval='step'), TuneReportCheckpointCallback(metrics, on="validation_end"),
@@ -281,39 +283,39 @@ def train_and_test():
     else:
         print("Using cached data set")
 
-    config = {
-        "lr": 1e-4,
-        "batch_size": 64,
-        "conv2a_out_channels": 100,
-        "conv2b_out_channels": 100,
-        "fca_out_features": 200,
-        "fcb_out_features": 300,
-        "fc1_out_features": 200,
-        "cnn_out_features": 4,
-    }
-
-    subsample_nodes = 1
-    subsample_attn = 15
-    no_scale_factor = False
-    n_grid = int(((421 - 1) / subsample_nodes) + 1)
-    n_grid_c = int(((421 - 1) / subsample_attn) + 1)
-    downsample = get_scaler_sizes(n_grid, n_grid_c, scale_factor=not no_scale_factor)
-    config['downscaler_size'] = downsample
-
-    print("--- Training surrogate model ---")
-    model = SurrogateModel(config)
-
-    trainer = train_surrogate_model(model, EPOCHS, NUM_GPUS)
-
-    print("--- Testing surrogate model ---")
-    trainer.test(ckpt_path='best')
+    # config = {
+    #     "lr": 1e-4,
+    #     "batch_size": 64,
+    #     "conv2a_out_channels": 100,
+    #     "conv2b_out_channels": 100,
+    #     "fca_out_features": 200,
+    #     "fcb_out_features": 300,
+    #     "fc1_out_features": 200,
+    #     "cnn_out_features": 4,
+    # }
+    #
+    # subsample_nodes = 1
+    # subsample_attn = 15
+    # no_scale_factor = False
+    # n_grid = int(((421 - 1) / subsample_nodes) + 1)
+    # n_grid_c = int(((421 - 1) / subsample_attn) + 1)
+    # downsample = get_scaler_sizes(n_grid, n_grid_c, scale_factor=not no_scale_factor)
+    # config['downscaler_size'] = downsample
+    #
+    # print("--- Training surrogate model ---")
+    # model = SurrogateModel(config)
+    #
+    # trainer = train_surrogate_model(model, EPOCHS, NUM_GPUS)
+    #
+    # print("--- Testing surrogate model ---")
+    # trainer.test(ckpt_path='best')
 
     best_trial = tune_surrogate_model(EPOCHS, NUM_SAMPLES)
     best_trained_model = SurrogateModel(best_trial.config)
     best_checkpoint_dir = best_trial.checkpoint.path
 
     # serialize the model to disk
-    torch.save(model, args["model"])
+    #torch.save(model, args["model"])
 
     # Export the model in the ONNX format
     # torch.onnx.export(model.model.cpu(), model.train_dataset.dataset.get_input_cpu(), "nonstationary_surrogate.onnx",
