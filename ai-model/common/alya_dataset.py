@@ -7,12 +7,10 @@ import os, sys
 import re
 import matplotlib.pyplot as plt
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
 
 # current_dir = os.path.dirname(os.path.realpath(__file__))
 # parent_dir = os.path.dirname(current_dir)
 # sys.path.append(parent_dir)
-from model_surrogate.convolutional_network import ConvolutionalNetwork
 
 
 # %% Read dataset from Alya "results" folder and store it in Torch Tensor format
@@ -213,7 +211,7 @@ class AlyaDataset(Dataset):
         self.vIn = []  # simulation V modulus set
         self.ang = []  # simulation V angle set
 
-        print("Starting loading of Alya files...")
+        print(f"Starting loading of Alya files from folder ${folder}...")
 
         prev_time_steps = None
 

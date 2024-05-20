@@ -97,6 +97,11 @@ class SurrogateModel(pl.LightningModule):
         self.test_accuracy = R2Score(num_outputs=1)
 
     def __load_data(self):
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        print(f"---- ${parent_dir}")
+        sys.path.append(parent_dir)
+
         # load the Alya surrogate dataset
         print("[INFO] loading the Alya Surrogate dataset...")
         data_cache_file = join(current_dir, args["data"])

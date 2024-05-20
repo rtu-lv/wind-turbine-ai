@@ -1,2 +1,2 @@
 #!/bin/bash
-tensorboard --logdir=tuning_logs
+tensorboard --logdir=model_surrogate/tuning_logs

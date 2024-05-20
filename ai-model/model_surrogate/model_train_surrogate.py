@@ -7,12 +7,12 @@ import sys
 from os.path import exists, join
 import numpy as np
 
-import pytorch_lightning as pl
+import lightning as pl
+from lightning.pytorch.callbacks import LearningRateMonitor, DeviceStatsMonitor
 import torch
-from pytorch_lightning.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from ray import tune
-from ray.tune.integration.pytorch_lightning import TuneReportCheckpointCallback
+from ray.tune.integration.pytorch_lightning import TuneReportCallback, TuneReportCheckpointCallback
 from ray.tune.schedulers import ASHAScheduler
 from torch import nn
 from torch.optim import AdamW, lr_scheduler
@@ -90,11 +90,15 @@ class SurrogateModel(pl.LightningModule):
 
         self.loss_function = nn.MSELoss()
 
-        self.train_accuracy = R2Score(num_outputs=4)
-        self.val_accuracy = R2Score(num_outputs=4)
-        self.test_accuracy = R2Score(num_outputs=4)
+        self.train_accuracy = R2Score(num_outputs=1)
+        self.val_accuracy = R2Score(num_outputs=1)
+        self.test_accuracy = R2Score(num_outputs=1)
 
     def __load_data(self):
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        sys.path.append(parent_dir)
+
         # load the Alya surrogate dataset
         print("[INFO] loading the Alya Surrogate dataset...")
         data_cache_file = join(current_dir, args["data"])
@@ -190,10 +194,11 @@ def train_surrogate_model(config, num_epochs, num_gpus):
 
     metrics = {"loss": "summary/validation_loss", "accuracy": "summary/validation_accuracy"}
     callbacks = [
-        LearningRateMonitor(logging_interval='step'), TuneReportCheckpointCallback(metrics, on="validation_end"),
-        TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end")
+        LearningRateMonitor(logging_interval='epoch'),
+        TuneReportCallback(metrics, on="validation_end"),
+        TuneReportCheckpointCallback(metrics, filename="checkpoint", on="validation_end"),
+        DeviceStatsMonitor(),
     ]
-    #callbacks = [LearningRateMonitor(logging_interval='step')]
 
     trainer = pl.Trainer(accelerator="gpu" if num_gpus > 0 else "cpu", devices=num_gpus if num_gpus > 0 else 1,
                          max_epochs=num_epochs, callbacks=callbacks, enable_progress_bar=True)
@@ -236,18 +241,18 @@ def load_and_cache_data(data_cache_file):
 
 def tune_surrogate_model(num_epochs, num_samples):
     config = {
-        "lr": tune.loguniform(1e-4, 1e-1),
-        "batch_size": tune.choice([64, 128, 256]),
+        "lr": tune.loguniform(1e-3, 1e-1),
+        "batch_size": tune.choice([64, 64, 128]),
         "conv2a_out_channels": tune.choice([50, 75, 100]),
         "conv2b_out_channels": tune.choice([50, 75, 100]),
         "fca_out_features": tune.choice([100, 200, 300]),
         "fcb_out_features": tune.choice([200, 300, 400]),
         "fc1_out_features": tune.choice([100, 200, 300]),
-        "cnn_out_features": tune.choice([4, 4, 4]),
+        "cnn_out_features": tune.choice([32, 64, 128]),
     }
     trainable = tune.with_parameters(train_surrogate_model, num_epochs=num_epochs, num_gpus=NUM_GPUS)
 
-    scheduler = ASHAScheduler(max_t=num_epochs*2, grace_period=num_epochs // 10, reduction_factor=2)
+    scheduler = ASHAScheduler(max_t=num_epochs, grace_period=num_epochs // 10, reduction_factor=2)
 
     resources_per_trial = {
         "cpu": NUM_CPUS,

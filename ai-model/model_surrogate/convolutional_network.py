@@ -66,7 +66,7 @@ class ConvolutionalNetwork(Module):
         self.bn = BatchNorm1d(num_features=fc1_out_features)
 
         # get output layer as a single value
-        cnn_out_features = 4 # config["cnn_out_features"]
+        cnn_out_features = config["cnn_out_features"]
         self.fcOut = Linear(in_features=fc1_out_features, out_features=cnn_out_features)
 
         # self.apply(self._init_weights)
