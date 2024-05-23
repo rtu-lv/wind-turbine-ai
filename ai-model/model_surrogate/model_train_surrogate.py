@@ -328,14 +328,10 @@ def train_and_test():
     # serialize the model to disk
     torch.save(best_trained_model.model, args["model"])
 
-    # serialize the model to disk
-    #torch.save(model, args["model"])
-
-    # Export the model in the ONNX format
-    # torch.onnx.export(model.model.cpu(), model.train_dataset.dataset.get_input_cpu(), "nonstationary_surrogate.onnx",
+    #torch.onnx.export(best_trained_model.model.cpu(), best_trained_model.train_dataset.dataset.get_input_cpu(),
+    #                  "nonstationary_surrogate.onnx",
     #                  export_params=True,
     #                  input_names=['upstream', 'downstream'], output_names=['porosity'])
-
 
 if __name__ == "__main__":
     train_and_test()
