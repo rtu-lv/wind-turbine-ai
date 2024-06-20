@@ -268,7 +268,7 @@ def tune_surrogate_model(num_epochs, num_samples):
         config=config,
         num_samples=num_samples,
         name=TUNING_LOGS_DIR,
-        local_dir=os.getcwd(),
+        storage_path=os.getcwd(),
         resume='AUTO+ERRORED'
     )
 
