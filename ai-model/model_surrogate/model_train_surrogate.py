@@ -13,7 +13,6 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from ray import tune
 from ray.tune.integration.pytorch_lightning import TuneReportCallback, TuneReportCheckpointCallback
 from ray.tune.schedulers import ASHAScheduler
-from torch import nn
 from torch.optim import AdamW, lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.data import random_split
@@ -246,7 +245,7 @@ def tune_surrogate_model(num_epochs, num_samples):
         config=config,
         num_samples=num_samples,
         name=TUNING_LOGS_DIR,
-        local_dir=os.getcwd(),
+        storage_path=os.getcwd(),
         resume='AUTO+ERRORED'
     )
 
