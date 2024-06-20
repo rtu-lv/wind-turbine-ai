@@ -6,9 +6,9 @@ import pickle
 import sys
 from os.path import exists, join
 
-import pytorch_lightning as pl
+import lightning as pl
 import torch
-from pytorch_lightning.callbacks import LearningRateMonitor
+from lightning.pytorch.callbacks import LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from ray import tune
 from ray.tune.integration.pytorch_lightning import TuneReportCallback, TuneReportCheckpointCallback
@@ -78,7 +78,7 @@ class CombinedLoss(torch.nn.Module):
 
     def __init__(self):
         super(CombinedLoss, self).__init__()
-        self.mse_loss = MeanSquaredError()
+        self.mse_loss = MeanSquaredError(num_outputs=4)
         self.pearson_loss = PearsonCorrCoef(num_outputs=4)
 
     def forward(self, inputs, targets):
