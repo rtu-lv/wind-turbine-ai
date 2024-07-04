@@ -7,7 +7,7 @@ class NonStationaryModel(nn.Module):
     def __init__(self, config, num_channels=2, time_steps=20, recurrent_type='RNN'):
         super(NonStationaryModel, self).__init__()
 
-        print("Initializing nonstationary model")
+        print(f"Initializing nonstationary model with {time_steps} timesteps")
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

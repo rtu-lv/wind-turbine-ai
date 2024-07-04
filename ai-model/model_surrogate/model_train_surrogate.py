@@ -8,6 +8,7 @@ from os.path import exists, join
 import numpy as np
 
 import lightning as pl
+import ray
 from lightning.pytorch.callbacks import LearningRateMonitor, DeviceStatsMonitor
 import torch
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -281,6 +282,8 @@ def tune_surrogate_model(num_epochs, num_samples):
 
 
 def train_and_test():
+    ray.init()
+
     torch.set_float32_matmul_precision('medium')
 
     data_cache_file = join(current_dir, args["data"])
